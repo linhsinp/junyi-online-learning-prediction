@@ -1,21 +1,31 @@
 # Define project's core dependencies and build backend.
 
-[tool.poetry]
+[project]
 name = "junyi-predictor"
 version = "0.1.0"
 description = "Junyi acadamy platform performance prediction"
-authors = ["linhsinp <linhsinp@gmail.com>"]
+authors = [
+    {name = "Lin, Hsin-Pei", email = "linhsinp@gmail.com"},
+]
 readme = "README.md"
-package-mode = false
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  "flask>=3.1.1",
+  "flytekit>=1.16.0",
+  "isort>=6.0.1",
+  "numpy>=2.2.6",
+  "pandas>=2.3.0",
+  "pre-commit>=4.2.0",
+  "ruff>=0.11.2",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9,<3.11"
-numpy = "^1.25.1"
-pre-commit = "^4.2.0"
-isort = "^6.0.1"
-ruff = "^0.11.2"
-flask = "^3.1.1"
+[dependency-groups]
+dev = [
+    "ruff >=0.7.4, <1.0.0",
+]
+prod = [
+    "gunicorn >=23.0.0, <24.0.0",
+]
 
-[build-system]
-requires = ["poetry-core=1.8.3"]
-build-backend = "poetry.core.masonry.api"
+[tool.uv]
+default-groups = []
