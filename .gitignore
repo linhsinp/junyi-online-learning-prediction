@@ -1,6 +1,8 @@
 .DS_Store
+.env
+.vscode/
 demo/
 data/raw/
+data/output/
 terraform-provider-google_v6.38.0_x5
 kaggle.json
-.env

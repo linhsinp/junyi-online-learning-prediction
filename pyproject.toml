@@ -11,6 +11,7 @@ readme = "README.md"
 requires-python = ">=3.10,<3.13"
 dependencies = [
   "dotenv>=0.9.9",
+  "fastparquet>=2024.11.0",
   "flask>=3.1.1",
   "flytekit>=1.16.0",
   "isort>=6.0.1",
@@ -18,11 +19,13 @@ dependencies = [
   "numpy>=2.2.6",
   "pandas>=2.3.0",
   "pre-commit>=4.2.0",
+  "pyarrow>=20.0.0",
   "ruff>=0.11.2",
 ]
 
 [dependency-groups]
 dev = [
+    "ipykernel>=6.29.5",
     "ruff >=0.7.4, <1.0.0",
 ]
 prod = [
