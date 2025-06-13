@@ -15,6 +15,8 @@ VARS_CONTENT_CATEGORY = ['level3_id','level4_id']
 # Path
 PATH_INPUT = 'data/raw'
 PATH_OUTPUT = 'data/output'
+PATH_EXPERIMENT = 'data/experiment'
+PATH_TEST = 'data/test'
 
 # Files
 FILE_LOG_FULL = os.path.join(PATH_INPUT ,'Log_Problem.csv')
@@ -66,7 +68,7 @@ def preprocess_log(df_log: pd.DataFrame, df_user: pd.DataFrame) -> pd.DataFrame:
         pd.DataFrame: The preprocessed DataFrame.
     """
     df_log = pd.merge(df_log, df_user[['uuid','user_grade','gender']], on='uuid', how='left')  
-    df_log = df_log.sort_values(by='timestamp_TW').reset_index(drop=True)   
+    df_log = df_log.sort_values(['timestamp_TW', 'uuid', 'upid']).reset_index(drop=True)
 
     # Convert gender to one-hot encoding to handle "unspecified"; set NaN as "unspecified"
     df_log.fillna(value = {'gender':'unspecified'}, inplace=True)
@@ -98,10 +100,44 @@ def save_parquet(df_log: pd.DataFrame, df_user: pd.DataFrame, df_content: pd.Dat
     df_content.to_parquet(os.path.join(PATH_OUTPUT ,'Processed_Info_Content.parquet.gzip'))
 
 
+def split_experiment_data(df_log: pd.DataFrame, df_user: pd.DataFrame, df_content: pd.DataFrame) -> None:
+    """     
+    Split the data into training and testing sets for benchmarking purposes.
+
+    This function trains the benchmark on the first 10,000 users and tests it on the rest.
+    It saves the training and testing sets as Parquet files.
+
+    Args:
+        df_log (pd.DataFrame): The preprocessed log DataFrame.
+        df_user (pd.DataFrame): The user information DataFrame.
+        df_content (pd.DataFrame): The content information DataFrame.
+    """
+    # Experiment on first 10,000 users
+    df_user_train = df_user[df_user['uuid'].isin(df_log['uuid'].unique()[:10000])].reset_index(drop=True)
+    df_user_train['uuid'] = df_user_train['uuid'].cat.remove_unused_categories()
+    df_log_train = df_log[df_log['uuid'].isin(df_user_train['uuid'])].reset_index(drop=True)
+    df_log_train['uuid'] = df_log_train['uuid'].cat.remove_unused_categories()
+    df_content_train = df_content[df_content['ucid'].isin(df_log_train['ucid'].unique())].reset_index(drop=True)
+    df_log_train.to_parquet(os.path.join(PATH_EXPERIMENT ,'Processed_Log_Problem_train.parquet.gzip'))
+    df_user_train.to_parquet(os.path.join(PATH_EXPERIMENT ,'Processed_Info_UserData_train.parquet.gzip'))
+    df_content_train.to_parquet(os.path.join(PATH_EXPERIMENT ,'Processed_Info_Content_train.parquet.gzip'))
+    # Keep the rest for further training
+    df_user_test = df_user[~df_user['uuid'].isin(df_user_train['uuid'])].reset_index(drop=True)
+    df_user_test['uuid'] = df_user_test['uuid'].cat.remove_unused_categories()
+    df_log_test = df_log[~df_log['uuid'].isin(df_user_train['uuid'])].reset_index(drop=True)
+    df_log_test['uuid'] = df_log_test['uuid'].cat.remove_unused_categories()
+    df_content_test = df_content[df_content['ucid'].isin(df_log_test['ucid'].unique())].reset_index(drop=True)
+    df_log_test.to_parquet(os.path.join(PATH_TEST ,'Processed_Log_Problem_test.parquet.gzip'))
+    df_user_test.to_parquet(os.path.join(PATH_TEST ,'Processed_Info_UserData_test.parquet.gzip'))
+    df_content_test.to_parquet(os.path.join(PATH_TEST ,'Processed_Info_Content_test.parquet.gzip'))
+
+
 if __name__ == "__main__":
 
     # Ensure output directory exists
     os.makedirs(PATH_OUTPUT, exist_ok=True) 
+    os.makedirs(PATH_EXPERIMENT, exist_ok=True) 
+    os.makedirs(PATH_TEST, exist_ok=True) 
 
     # Load raw data
     df_log = pd.read_csv(FILE_LOG_FULL, dtype=log_dtypes)
@@ -118,3 +154,7 @@ if __name__ == "__main__":
 
     # Save the preprocessed DataFrames
     save_parquet(df_log, df_user, df_content)
+
+    # Split the data into training and testing sets
+    split_experiment_data(df_log, df_user, df_content)
+    print("Preprocessing completed and data saved successfully.")

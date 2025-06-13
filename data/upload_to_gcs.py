@@ -7,9 +7,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BUCKET_NAME = os.getenv("GCS_BUCKET") 
+LOCAL_DIR = "data/raw"
+TARGET_DIR = "raw"
 
 
-def upload_to_gcs(local_folder="data/raw"):
+def upload_to_gcs(local_folder=LOCAL_DIR, target_dir=TARGET_DIR):
     """Uploads Junyi raw files from a local folder to Google Cloud Storage.
     
     * Info_Content
@@ -27,9 +29,9 @@ def upload_to_gcs(local_folder="data/raw"):
         for file in files:
             local_path = os.path.join(root, file)
             blob_path = os.path.relpath(local_path, local_folder)
-            blob = bucket.blob(f"raw/{blob_path}")
+            blob = bucket.blob(f"{target_dir}/{blob_path}")
             blob.upload_from_filename(local_path)
-            print(f"Uploaded: {local_path} → gs://{BUCKET_NAME}/raw/{blob_path}")
+            print(f"Uploaded: {local_path} → gs://{BUCKET_NAME}/{target_dir}/{blob_path}")
 
 
 if __name__ == "__main__":

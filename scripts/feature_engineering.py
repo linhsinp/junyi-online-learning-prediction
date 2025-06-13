@@ -9,13 +9,13 @@ import os
 
 
 # Path
-PATH_OUTPUT = 'data/output'
-PATH_PREPROCESSED_INPUT = 'data/output'
+PATH_FATURE_STORE = 'data/feature_store'
+PATH_PREPROCESSED_INPUT = 'data/experiment'
 
 # Files
-FILE_LOG_PROCESSED = os.path.join(PATH_PREPROCESSED_INPUT ,'Processed_Log_Problem_raw_timestamp.parquet.gzip')
-FILE_USER_PROCESSED = os.path.join(PATH_PREPROCESSED_INPUT ,'Processed_Info_UserData.parquet.gzip')
-FILE_CONTENT_PROCESSED = os.path.join(PATH_PREPROCESSED_INPUT ,'Processed_Info_Content.parquet.gzip')
+FILE_LOG_PROCESSED = os.path.join(PATH_PREPROCESSED_INPUT ,'Processed_Log_Problem_train.parquet.gzip')
+FILE_USER_PROCESSED = os.path.join(PATH_PREPROCESSED_INPUT ,'Processed_Info_UserData_train.parquet.gzip')
+FILE_CONTENT_PROCESSED = os.path.join(PATH_PREPROCESSED_INPUT ,'Processed_Info_Content_train.parquet.gzip')
 
 
 def create_upid_acc(df_log: pd.DataFrame) -> pd.DataFrame:
@@ -54,12 +54,20 @@ def create_upid_acc(df_log: pd.DataFrame) -> pd.DataFrame:
         .fillna(ACC_GRAND_AVG)
         .reset_index(level=[0,1], drop=True)
     )
+    # save df_log with UPID accuracy
+    df_log.to_parquet(os.path.join(PATH_FATURE_STORE,'df_log_with_upid_acc.parquet.gzip'), compression='gzip', index=False)
+    print("Log DataFrame with UPID accuracy created and saved successfully.")
+    
     return df_log
 
 
-def create_concept_proficiency(df_log: pd.DataFrame, list_concept_id: np.array) -> pd.DataFrame:
+def create_concept_proficiency(
+    df_log: pd.DataFrame, 
+    list_concept_id: np.array, 
+    dict_concept_id: dict
+) -> None:
     """
-    Create concept proficiency features in the log DataFrame.
+    Create concept proficiency matrix based on user logs and content data. (# logs, # concept id)
 
     This function computes the most recent level for each concept before each log entry.
 
@@ -70,19 +78,17 @@ def create_concept_proficiency(df_log: pd.DataFrame, list_concept_id: np.array) 
     Returns:
         pd.DataFrame: The log DataFrame with an added column for concept proficiency.
     """
-    recent_level = {cid: np.nan for cid in list_concept_id}
-    concept_proficiency_list = []
+    m_concept_proficiency = np.empty((len(df_log),len(list_concept_id)), dtype = 'float16')
+    m_concept_proficiency[:] = np.nan
     for row_id, log in df_log.iterrows():
         if row_id % 1000000 == 0:                
             print(row_id)
-        cid = log['ucid']
-        # Append the most recent level for this concept (before this log)
-        concept_proficiency_list.append(recent_level[cid])
-        # Update the most recent level for this concept
-        recent_level[cid] = log['level']
-    # Add the concept proficiency to the DataFrame
-    df_log['concept_proficiency'] = concept_proficiency_list
-    return df_log
+        # Update the matrix with the average concept level within the level 4 id
+        m_concept_proficiency[row_id, dict_concept_id[log['ucid']]] = log['level']
+    # Prevent from getting an exception when training the model.
+    m_concept_proficiency[np.isnan(m_concept_proficiency)] = 0
+    # save the m_concept_proficiency matrix
+    np.savez_compressed(os.path.join(PATH_FATURE_STORE,'m_concept_proficiency'), m_concept_proficiency)   
 
 
 def create_level4_proficiency_matrix(
@@ -114,6 +120,11 @@ def create_level4_proficiency_matrix(
     Returns:
         None: Saves the proficiency matrix as a compressed numpy file.
     """
+    # Check if df_content has the required columns
+    required_columns = {"ucid", "level4_id"}
+    if not required_columns.issubset(df_content.columns):
+        raise ValueError(f"df_content is missing required columns: {required_columns - set(df_content.columns)}")
+    df_log = df_log.merge(df_content[["ucid", "level4_id"]], how="left")
     
     # Create a mapping from level-4 id to concept ids
     dict_level4_to_ucid = (
@@ -146,12 +157,11 @@ def create_level4_proficiency_matrix(
             np.nansum(m_concept_level[dict_user_id[log['uuid']], dict_level4_to_ucid_new[dict_level4_id[log['level4_id']]]])
         )                             
 
-    # We need to convert nan values present in proficiency matrix to 0. 
-    # Otherwise, we will get an exception when training the model.
+    # Prevent from getting an exception when training the model.
     m_proficiency[np.isnan(m_proficiency)] = 0
 
     # save the m_proficiency matrix
-    np.savez_compressed(os.path.join(PATH_OUTPUT,'m_proficiency_level4'), m_proficiency)
+    np.savez_compressed(os.path.join(PATH_FATURE_STORE,'m_proficiency_level4'), m_proficiency)
 
 
 def load_proficiency_matrix():
@@ -160,7 +170,7 @@ def load_proficiency_matrix():
 
     This function checks if the matrix is not empty and prints selected values where they are not NaN or 0.
     """
-    m_proficiency = np.load(os.path.join(PATH_OUTPUT,'m_proficiency_level4.npz'))['arr_0']
+    m_proficiency = np.load(os.path.join(PATH_FATURE_STORE,'m_proficiency_level4.npz'))['arr_0']
     print("Proficiency matrix created and saved successfully.")
     # Check if the matrix is not empty
     if m_proficiency.size == 0:
@@ -189,7 +199,6 @@ if __name__ == "__main__":
     df_user = pd.read_parquet(FILE_USER_PROCESSED)
     df_content = pd.read_parquet(FILE_CONTENT_PROCESSED)
     df_log = pd.read_parquet(FILE_LOG_PROCESSED)
-    df_log = df_log.sort_values(['timestamp_TW', 'uuid', 'upid']).reset_index(drop=True)
 
     # Initialize variables
     list_concept_id = df_content.ucid.to_numpy()
@@ -202,15 +211,10 @@ if __name__ == "__main__":
     # Save the updated log DataFrame with UPID accuracy and concept proficiency
     df_log = create_upid_acc(df_log)
 
-    # Create concept proficiency features
-    df_log = create_concept_proficiency(df_log, list_concept_id)
+    # Create concept proficiency matrix
+    create_concept_proficiency(df_log, list_concept_id, dict_concept_id)
 
-    # Join the level 4 info to the log DataFrame
-    required_columns = {"ucid", "level4_id"}
-    if not required_columns.issubset(df_content.columns):
-        raise ValueError(f"df_content is missing required columns: {required_columns - set(df_content.columns)}")
-    df_log = df_log.merge(df_content[["ucid", "level4_id"]], how="left")
-
+    # Create level-4 proficiency matrix
     create_level4_proficiency_matrix(
         df_log, 
         df_content, 
