@@ -16,11 +16,13 @@ dependencies = [
   "flytekit>=1.16.0",
   "isort>=6.0.1",
   "kaggle>=1.7.4.5",
+  "matplotlib>=3.10.3",
   "numpy>=2.2.6",
   "pandas>=2.3.0",
   "pre-commit>=4.2.0",
   "pyarrow>=20.0.0",
   "ruff>=0.11.2",
+  "seaborn>=0.13.2",
 ]
 
 [dependency-groups]

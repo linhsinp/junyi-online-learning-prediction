@@ -9,7 +9,7 @@ import os
 
 
 # Path
-PATH_FATURE_STORE = 'data/feature_store'
+PATH_FEATURE_STORE = 'data/feature_store'
 PATH_PREPROCESSED_INPUT = 'data/experiment'
 
 # Files
@@ -55,7 +55,7 @@ def create_upid_acc(df_log: pd.DataFrame) -> pd.DataFrame:
         .reset_index(level=[0,1], drop=True)
     )
     # save df_log with UPID accuracy
-    df_log.to_parquet(os.path.join(PATH_FATURE_STORE,'df_log_with_upid_acc.parquet.gzip'), compression='gzip', index=False)
+    df_log.to_parquet(os.path.join(PATH_FEATURE_STORE,'df_log_with_upid_acc.parquet.gzip'), compression='gzip', index=False)
     print("Log DataFrame with UPID accuracy created and saved successfully.")
     
     return df_log
@@ -88,7 +88,7 @@ def create_concept_proficiency(
     # Prevent from getting an exception when training the model.
     m_concept_proficiency[np.isnan(m_concept_proficiency)] = 0
     # save the m_concept_proficiency matrix
-    np.savez_compressed(os.path.join(PATH_FATURE_STORE,'m_concept_proficiency'), m_concept_proficiency)   
+    np.savez_compressed(os.path.join(PATH_FEATURE_STORE,'m_concept_proficiency'), m_concept_proficiency)   
 
 
 def create_level4_proficiency_matrix(
@@ -161,7 +161,7 @@ def create_level4_proficiency_matrix(
     m_proficiency[np.isnan(m_proficiency)] = 0
 
     # save the m_proficiency matrix
-    np.savez_compressed(os.path.join(PATH_FATURE_STORE,'m_proficiency_level4'), m_proficiency)
+    np.savez_compressed(os.path.join(PATH_FEATURE_STORE,'m_proficiency_level4'), m_proficiency)
 
 
 def load_proficiency_matrix():
@@ -170,7 +170,7 @@ def load_proficiency_matrix():
 
     This function checks if the matrix is not empty and prints selected values where they are not NaN or 0.
     """
-    m_proficiency = np.load(os.path.join(PATH_FATURE_STORE,'m_proficiency_level4.npz'))['arr_0']
+    m_proficiency = np.load(os.path.join(PATH_FEATURE_STORE,'m_proficiency_level4.npz'))['arr_0']
     print("Proficiency matrix created and saved successfully.")
     # Check if the matrix is not empty
     if m_proficiency.size == 0:
