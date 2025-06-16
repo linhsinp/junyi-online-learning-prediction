@@ -8,6 +8,7 @@ data/output/
 data/experiment/
 data/test/
 data/feature_store/
+model/
 
 terraform-provider-google_v6.38.0_x5
 kaggle.json
