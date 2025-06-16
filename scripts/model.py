@@ -159,7 +159,6 @@ def train_and_evaluate_model(
     y_train: np.array, 
     X_test: np.array,
     y_test: np.array,
-    num_samples: int, 
     model_type: str
 ):
     if model_type == "DecisionTreeClassifier":
@@ -201,10 +200,10 @@ if __name__ == "__main__":
 
     X_train, y_train, X_test, y_test = split_data_for_train_and_test(df_log, NUM_SAMPLES)
     X_train, X_test = apply_min_max_transformation(X_train, X_test)
-    result_1 = train_and_evaluate_model(X_train, y_train, X_test, y_test, NUM_SAMPLES, model_type="DecisionTreeClassifier")
-    result_2 = train_and_evaluate_model(X_train, y_train, X_test, y_test, NUM_SAMPLES, model_type="GradientBoostingClassifier")
-    result_3 = train_and_evaluate_model(X_train, y_train, X_test, y_test, NUM_SAMPLES, model_type="LogisticRegression_L2")
-    result_4 = train_and_evaluate_model(X_train, y_train, X_test, y_test, NUM_SAMPLES, model_type="LogisticRegression_L1")
+    result_1 = train_and_evaluate_model(X_train, y_train, X_test, y_test, model_type="DecisionTreeClassifier")
+    result_2 = train_and_evaluate_model(X_train, y_train, X_test, y_test, model_type="GradientBoostingClassifier")
+    result_3 = train_and_evaluate_model(X_train, y_train, X_test, y_test, model_type="LogisticRegression_L2")
+    result_4 = train_and_evaluate_model(X_train, y_train, X_test, y_test, model_type="LogisticRegression_L1")
 
     print("Model training and evaluation completed and saved successfully.")
     
