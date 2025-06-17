@@ -1,6 +1,7 @@
-from flytekit import task
-from flytekit import current_context
 import os
+
+from flytekit import task
+
 from scripts.preprocess import load_data_into_df, preprocess_log, save_parquet
 
 
@@ -16,10 +17,12 @@ def read_raw_data_into_df(working_dir: os.path):
         df_user (pd.DataFrame): The DataFrame containing user information.
         df_content (pd.DataFrame): The DataFrame containing content information.
     """
-    path_log_full = os.path.join(working_dir, 'Log_Problem.csv')
-    path_user = os.path.join(working_dir, 'Info_UserData.csv')
-    path_content = os.path.join(working_dir, 'Info_Content.csv')
-    df_log, df_user, df_content = load_data_into_df(path_log_full, path_user, path_content)
+    path_log_full = os.path.join(working_dir, "Log_Problem.csv")
+    path_user = os.path.join(working_dir, "Info_UserData.csv")
+    path_content = os.path.join(working_dir, "Info_Content.csv")
+    df_log, df_user, df_content = load_data_into_df(
+        path_log_full, path_user, path_content
+    )
     return df_log, df_user, df_content
 
 
@@ -35,13 +38,17 @@ def preprocess_log_df(df_log, df_user):
     Returns:
         pd.DataFrame: The preprocessed DataFrame.
     """
-    print(f"Preprocessing log df by merging with user data, sorting, and encoding categorical variables.")
+    print(
+        "Preprocessing log df by merging with user data, sorting, and encoding categorical variables."
+    )
     df_log = preprocess_log(df_log, df_user)
     return df_log
 
 
 @task
-def save_preprocessed_data(df_log, df_user, df_content, working_dir: os.path) -> os.path:
+def save_preprocessed_data(
+    df_log, df_user, df_content, working_dir: os.path
+) -> os.path:
     """Flyte task to save preprocessed data locally to working directory.
 
     Args:
@@ -56,4 +63,3 @@ def save_preprocessed_data(df_log, df_user, df_content, working_dir: os.path) ->
     save_parquet(df_log, df_user, df_content, working_dir)
     print(f"Preprocessed data saved to {working_dir}.")
     return working_dir
-

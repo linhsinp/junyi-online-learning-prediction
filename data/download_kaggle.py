@@ -4,6 +4,7 @@ Make sure to have the Kaggle API installed and configured with your credentials.
 """
 
 import os
+
 from kaggle.api.kaggle_api_extended import KaggleApi
 
 
@@ -13,7 +14,7 @@ def download_kaggle_data(output_dir="data/raw"):
     * Info_Content
     * Info_UserData
     * Log_Problem
-    
+
     Args:
         output_dir (str): Directory where the dataset will be downloaded and extracted.
 

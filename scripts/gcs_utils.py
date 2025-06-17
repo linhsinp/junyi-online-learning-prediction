@@ -1,15 +1,16 @@
-""" 
+"""
 This script provides utility functions to interact with Google Cloud Storage.
 It includes functions to download and upload files to a specified bucket.
 """
 
-from google.cloud import storage
 import os
+
 from dotenv import load_dotenv
+from google.cloud import storage
 
 load_dotenv()
 
-BUCKET_NAME = os.getenv("GCS_BUCKET") 
+BUCKET_NAME = os.getenv("GCS_BUCKET")
 LOCAL_DIR = "data/feature_store"
 REMOTE_DIR = "feature_store"
 
@@ -48,7 +49,7 @@ def upload_blob(bucket_name: str, source_file_name: str, destination_blob_name: 
 
 def upload_folder(local_folder: str = LOCAL_DIR, target_dir: str = REMOTE_DIR):
     """Uploads files from a local folder to Google Cloud Storage.
-    
+
     Useful for batching uploads of multiple files to a specific directory in the GCS bucket.
 
     Args:
@@ -64,7 +65,9 @@ def upload_folder(local_folder: str = LOCAL_DIR, target_dir: str = REMOTE_DIR):
             blob_path = os.path.relpath(local_path, local_folder)
             blob = bucket.blob(f"{target_dir}/{blob_path}")
             blob.upload_from_filename(local_path)
-            print(f"Uploaded: {local_path} → gs://{BUCKET_NAME}/{target_dir}/{blob_path}")
+            print(
+                f"Uploaded: {local_path} → gs://{BUCKET_NAME}/{target_dir}/{blob_path}"
+            )
 
 
 def download_data_to_tmp(prefix: str, local_dir: str = "/tmp/data"):
@@ -79,7 +82,7 @@ def download_data_to_tmp(prefix: str, local_dir: str = "/tmp/data"):
     os.makedirs(local_dir, exist_ok=True)
 
     for blob in client.list_blobs(bucket, prefix=prefix):
-        relative_path = blob.name[len(prefix):].lstrip("/")
+        relative_path = blob.name[len(prefix) :].lstrip("/")
         local_path = os.path.join(local_dir, relative_path)
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         blob.download_to_filename(local_path)

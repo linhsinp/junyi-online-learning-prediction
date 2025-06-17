@@ -2,6 +2,7 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
+
 from scripts.gcs_utils import download_data_to_tmp
 
 
@@ -40,4 +41,5 @@ def test_download_data_to_tmp_creates_local_file(mock_gcs):
     # Cleanup after test
     if os.path.exists("/tmp/data"):
         import shutil
+
         shutil.rmtree("/tmp/data")

@@ -1,21 +1,27 @@
 """
 PROBLEM-LEVEL PREDICTION Feature Engineering
-The aim is to predict whether a student will answer a problem correct given the details of the problem and the student's performance history. 
+The aim is to predict whether a student will answer a problem correct given the details of the problem and the student's performance history.
 """
 
-import numpy as np 
-import pandas as pd 
 import os
 
+import numpy as np
+import pandas as pd
 
 # Path
-PATH_FEATURE_STORE = 'data/feature_store'
-PATH_PREPROCESSED_INPUT = 'data/experiment'
+PATH_FEATURE_STORE = "data/feature_store"
+PATH_PREPROCESSED_INPUT = "data/experiment"
 
 # Files
-FILE_LOG_PROCESSED = os.path.join(PATH_PREPROCESSED_INPUT ,'Processed_Log_Problem_train.parquet.gzip')
-FILE_USER_PROCESSED = os.path.join(PATH_PREPROCESSED_INPUT ,'Processed_Info_UserData_train.parquet.gzip')
-FILE_CONTENT_PROCESSED = os.path.join(PATH_PREPROCESSED_INPUT ,'Processed_Info_Content_train.parquet.gzip')
+FILE_LOG_PROCESSED = os.path.join(
+    PATH_PREPROCESSED_INPUT, "Processed_Log_Problem_train.parquet.gzip"
+)
+FILE_USER_PROCESSED = os.path.join(
+    PATH_PREPROCESSED_INPUT, "Processed_Info_UserData_train.parquet.gzip"
+)
+FILE_CONTENT_PROCESSED = os.path.join(
+    PATH_PREPROCESSED_INPUT, "Processed_Info_Content_train.parquet.gzip"
+)
 
 
 def create_upid_acc(df_log: pd.DataFrame) -> pd.DataFrame:
@@ -24,47 +30,47 @@ def create_upid_acc(df_log: pd.DataFrame) -> pd.DataFrame:
 
     This function computes the running accuracy for each UPID and for each user-UPID pair,
     using only past data. It fills missing values with the grand average accuracy.
-    
+
     Args:
         df_log (pd.DataFrame): The log DataFrame containing 'upid' and 'is_correct' columns.
     Returns:
         pd.DataFrame: The log DataFrame with added columns for UPID accuracy and user-UPID accuracy.
-    
+
     """
-    ACC_GRAND_AVG = df_log.is_correct.mean()        
-    # Compute running accuracy for each upid, using only past data 
+    ACC_GRAND_AVG = df_log.is_correct.mean()
+    # Compute running accuracy for each upid, using only past data
     #  - for problem-level features
-    df_log['v_upid_acc'] = (
-        df_log
-        .groupby('upid', observed=True)['is_correct']
+    df_log["v_upid_acc"] = (
+        df_log.groupby("upid", observed=True)["is_correct"]
         .expanding()
         .mean()
         .shift(1)
         .fillna(ACC_GRAND_AVG)
         .reset_index(level=0, drop=True)
     )
-    # Compute running accuracy for each user and upid, using only past data 
+    # Compute running accuracy for each user and upid, using only past data
     #  - for personalized prediction
-    df_log['v_uuid_upid_acc'] = (
-        df_log
-        .groupby(['uuid', 'upid'], observed=True)['is_correct']
+    df_log["v_uuid_upid_acc"] = (
+        df_log.groupby(["uuid", "upid"], observed=True)["is_correct"]
         .expanding()
         .mean()
         .shift(1)
         .fillna(ACC_GRAND_AVG)
-        .reset_index(level=[0,1], drop=True)
+        .reset_index(level=[0, 1], drop=True)
     )
     # save df_log with UPID accuracy
-    df_log.to_parquet(os.path.join(PATH_FEATURE_STORE,'df_log_with_upid_acc.parquet.gzip'), compression='gzip', index=False)
+    df_log.to_parquet(
+        os.path.join(PATH_FEATURE_STORE, "df_log_with_upid_acc.parquet.gzip"),
+        compression="gzip",
+        index=False,
+    )
     print("Log DataFrame with UPID accuracy created and saved successfully.")
-    
+
     return df_log
 
 
 def create_concept_proficiency(
-    df_log: pd.DataFrame, 
-    list_concept_id: np.array, 
-    dict_concept_id: dict
+    df_log: pd.DataFrame, list_concept_id: np.array, dict_concept_id: dict
 ) -> None:
     """
     Create concept proficiency matrix based on user logs and content data. (# logs, # concept id)
@@ -78,33 +84,37 @@ def create_concept_proficiency(
     Returns:
         pd.DataFrame: The log DataFrame with an added column for concept proficiency.
     """
-    m_concept_proficiency = np.empty((len(df_log),len(list_concept_id)), dtype = 'float16')
+    m_concept_proficiency = np.empty(
+        (len(df_log), len(list_concept_id)), dtype="float16"
+    )
     m_concept_proficiency[:] = np.nan
     for row_id, log in df_log.iterrows():
-        if row_id % 1000000 == 0:                
+        if row_id % 1000000 == 0:
             print(row_id)
         # Update the matrix with the average concept level within the level 4 id
-        m_concept_proficiency[row_id, dict_concept_id[log['ucid']]] = log['level']
+        m_concept_proficiency[row_id, dict_concept_id[log["ucid"]]] = log["level"]
     # Prevent from getting an exception when training the model.
     m_concept_proficiency[np.isnan(m_concept_proficiency)] = 0
     # save the m_concept_proficiency matrix
-    np.savez_compressed(os.path.join(PATH_FEATURE_STORE,'m_concept_proficiency'), m_concept_proficiency)   
+    np.savez_compressed(
+        os.path.join(PATH_FEATURE_STORE, "m_concept_proficiency"), m_concept_proficiency
+    )
 
 
 def create_level4_proficiency_matrix(
-    df_log: pd.DataFrame, 
-    df_content: pd.DataFrame, 
-    list_concept_id: np.array, 
-    dict_concept_id: dict, 
+    df_log: pd.DataFrame,
+    df_content: pd.DataFrame,
+    list_concept_id: np.array,
+    dict_concept_id: dict,
     list_level4_id: np.array,
     dict_level4_id: dict,
     list_user_id: pd.Categorical,
-    dict_user_id: dict
+    dict_user_id: dict,
 ) -> None:
     """
     Create a proficiency matrix for level-4 categories based on user logs and content data. (# logs, # level4 id)
 
-    The student's most recent "level" of a level-4 category, which is derived by 
+    The student's most recent "level" of a level-4 category, which is derived by
     averaging across the most recent levels of all concepts within one "level-4" category.
 
     Args:
@@ -116,20 +126,21 @@ def create_level4_proficiency_matrix(
         dict_level4_id (dict): A dictionary mapping level-4 IDs to their indices.
         list_user_id (pd.Categorical): A list of unique user IDs.
         dict_user_id (dict): A dictionary mapping user IDs to their indices.
-    
+
     Returns:
         None: Saves the proficiency matrix as a compressed numpy file.
     """
     # Check if df_content has the required columns
     required_columns = {"ucid", "level4_id"}
     if not required_columns.issubset(df_content.columns):
-        raise ValueError(f"df_content is missing required columns: {required_columns - set(df_content.columns)}")
+        raise ValueError(
+            f"df_content is missing required columns: {required_columns - set(df_content.columns)}"
+        )
     df_log = df_log.merge(df_content[["ucid", "level4_id"]], how="left")
-    
+
     # Create a mapping from level-4 id to concept ids
     dict_level4_to_ucid = (
-        df_content
-        .groupby('level4_id', observed=True)['ucid']
+        df_content.groupby("level4_id", observed=True)["ucid"]
         .apply(lambda ucids: [dict_concept_id[ucid] for ucid in ucids])
         .to_dict()
     )
@@ -140,28 +151,37 @@ def create_level4_proficiency_matrix(
         dict_level4_to_ucid_new[numeric_id] = dict_level4_to_ucid[key]
 
     # Create the "proficiency matrix" (# logs, # level 4 id) which encodes the most recent level per level-4 category (averaged across ucid)
-    m_proficiency = np.empty((len(df_log), len(list_level4_id)), dtype = 'float16')
+    m_proficiency = np.empty((len(df_log), len(list_level4_id)), dtype="float16")
     m_proficiency[:] = np.nan
 
-    # Create the helper "concept level matrix" (# users, # concept id) which encodes the most recent level per concept of each student  
-    m_concept_level = np.empty((len(list_user_id), len(list_concept_id))) #, dtype = 'int8'
-    m_concept_level[:] = np.nan   
+    # Create the helper "concept level matrix" (# users, # concept id) which encodes the most recent level per concept of each student
+    m_concept_level = np.empty(
+        (len(list_user_id), len(list_concept_id))
+    )  # , dtype = 'int8'
+    m_concept_level[:] = np.nan
 
     for row_id, log in df_log.iterrows():
-        if row_id % 10000 == 0:                
+        if row_id % 10000 == 0:
             print(row_id)
         # Update the "concept level matrix"
-        m_concept_level[dict_user_id[log['uuid']], dict_concept_id[log['ucid']]] = log['level']
+        m_concept_level[dict_user_id[log["uuid"]], dict_concept_id[log["ucid"]]] = log[
+            "level"
+        ]
         # Update the "proficiency matrix" with the average concept level within the level 4 id
-        m_proficiency[row_id, dict_level4_id[log['level4_id']]] = (
-            np.nansum(m_concept_level[dict_user_id[log['uuid']], dict_level4_to_ucid_new[dict_level4_id[log['level4_id']]]])
-        )                             
+        m_proficiency[row_id, dict_level4_id[log["level4_id"]]] = np.nansum(
+            m_concept_level[
+                dict_user_id[log["uuid"]],
+                dict_level4_to_ucid_new[dict_level4_id[log["level4_id"]]],
+            ]
+        )
 
     # Prevent from getting an exception when training the model.
     m_proficiency[np.isnan(m_proficiency)] = 0
 
     # save the m_proficiency matrix
-    np.savez_compressed(os.path.join(PATH_FEATURE_STORE,'m_proficiency_level4'), m_proficiency)
+    np.savez_compressed(
+        os.path.join(PATH_FEATURE_STORE, "m_proficiency_level4"), m_proficiency
+    )
 
 
 def load_proficiency_matrix():
@@ -170,14 +190,16 @@ def load_proficiency_matrix():
 
     This function checks if the matrix is not empty and prints selected values where they are not NaN or 0.
     """
-    m_proficiency = np.load(os.path.join(PATH_FEATURE_STORE,'m_proficiency_level4.npz'))['arr_0']
+    m_proficiency = np.load(
+        os.path.join(PATH_FEATURE_STORE, "m_proficiency_level4.npz")
+    )["arr_0"]
     print("Proficiency matrix created and saved successfully.")
     # Check if the matrix is not empty
     if m_proficiency.size == 0:
         raise ValueError("Proficiency matrix is empty. Please check the input data.")
     # Check the selected values in m_proficiency where values are not NaN
     print("Selected values in m_proficiency where values are not NaN:")
-    for i in range(len(m_proficiency)):     
+    for i in range(len(m_proficiency)):
         if np.any(~np.isnan(m_proficiency[i, :])):
             print(f"Row {i}: {m_proficiency[i, ~np.isnan(m_proficiency[i, :])][:10]}")
     # Check the selected values in m_proficiency where values are not 0
@@ -188,7 +210,6 @@ def load_proficiency_matrix():
 
 
 if __name__ == "__main__":
-
     # Load the preprocessed data
     if not os.path.exists(FILE_LOG_PROCESSED):
         raise FileNotFoundError(f"Log file not found: {FILE_LOG_PROCESSED}")
@@ -204,9 +225,9 @@ if __name__ == "__main__":
     list_concept_id = df_content.ucid.to_numpy()
     dict_concept_id = {id: order for order, id in enumerate(list_concept_id)}
     list_level4_id = df_content.level4_id.unique().to_numpy()
-    dict_level4_id = {id:order for order, id in enumerate(list_level4_id)}
-    list_user_id = df_user['uuid'].unique()
-    dict_user_id = {id:order for order, id in enumerate(list_user_id)}
+    dict_level4_id = {id: order for order, id in enumerate(list_level4_id)}
+    list_user_id = df_user["uuid"].unique()
+    dict_user_id = {id: order for order, id in enumerate(list_user_id)}
 
     # Save the updated log DataFrame with UPID accuracy and concept proficiency
     df_log = create_upid_acc(df_log)
@@ -216,14 +237,14 @@ if __name__ == "__main__":
 
     # Create level-4 proficiency matrix
     create_level4_proficiency_matrix(
-        df_log, 
-        df_content, 
-        list_concept_id, 
-        dict_concept_id, 
-        list_level4_id, 
-        dict_level4_id, 
-        list_user_id, 
-        dict_user_id
+        df_log,
+        df_content,
+        list_concept_id,
+        dict_concept_id,
+        list_level4_id,
+        dict_level4_id,
+        list_user_id,
+        dict_user_id,
     )
 
     print("Feature engineering completed and saved successfully.")

@@ -1,8 +1,10 @@
-from flytekit import workflow
-from flyte.workflows.preprocess import preprocessing_wf
-from flyte.workflows.engineer_feature import feature_engineering_wf
-from flyte.workflows.train_model import training_wf
 from typing import Tuple
+
+from flytekit import workflow
+
+from flyte.workflows.engineer_feature import feature_engineering_wf
+from flyte.workflows.preprocess import preprocessing_wf
+from flyte.workflows.train_model import training_wf
 
 
 @workflow

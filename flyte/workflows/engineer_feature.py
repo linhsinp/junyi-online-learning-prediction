@@ -1,6 +1,6 @@
 from flytekit import workflow
-from tasks.ingest import fetch_from_gcs
 from tasks.engineer_feature import generate_features
+from tasks.ingest import fetch_from_gcs
 
 
 @workflow
