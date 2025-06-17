@@ -24,36 +24,61 @@ FILE_USER = os.path.join(PATH_INPUT,'Info_UserData.csv')
 FILE_CONTENT = os.path.join(PATH_INPUT,'Info_Content.csv')
 
 
-log_dtypes = {
-    'timestamp_TW':'object',
-    'uuid':'category',
-    'ucid':'category',
-    'upid':'category',
-    'problem_number':'int16',
-    'exercise_problem_repeat_session':'int16',
-    'is_correct':'boolean',
-    'total_sec_taken':'int16',
-    'total_attempt_cnt':'int16',
-    'used_hint_cnt':'int16',
-    'is_hint_used':'boolean',
-    # 'is_downgrade':'boolean',
-    # 'is_upgrade':'boolean',              
-    'level':'int8'
-    }
+def load_data_into_df(
+    path_log_full: str, 
+    path_user: str, 
+    path_content: str
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Load raw data into pandas dataframe.
 
-user_dtype = {
-    'uuid':'category',
-    'gender':'category',                                 
-    'user_grade':'int8'
-    }
+    Args:
+        path_log_full (str): Path to raw df_log file
+        path_user (str): Path to raw df_user file
+        path_content (str): Path to raw df_content file
 
-content_dtype = {
-    'ucid':'category',
-    'level4_id':'category',
-    'level4_id':'category',
-    'difficulty':'category',
-    'learning_stage':'category'
-    } 
+    Returns:
+        df_log (pd.DataFrame): The DataFrame containing log data.
+        df_user (pd.DataFrame): The DataFrame containing user information.
+        df_content (pd.DataFrame): The DataFrame containing content information.
+    """
+    log_dtypes = {
+        'timestamp_TW':'object',
+        'uuid':'category',
+        'ucid':'category',
+        'upid':'category',
+        'problem_number':'int16',
+        'exercise_problem_repeat_session':'int16',
+        'is_correct':'boolean',
+        'total_sec_taken':'int16',
+        'total_attempt_cnt':'int16',
+        'used_hint_cnt':'int16',
+        'is_hint_used':'boolean',
+        # 'is_downgrade':'boolean',
+        # 'is_upgrade':'boolean',              
+        'level':'int8'
+        }
+    user_dtype = {
+        'uuid':'category',
+        'gender':'category',                                 
+        'user_grade':'int8'
+        }
+    content_dtype = {
+        'ucid':'category',
+        'level4_id':'category',
+        'level4_id':'category',
+        'difficulty':'category',
+        'learning_stage':'category'
+        } 
+    
+    df_log = pd.read_csv(path_log_full, dtype=log_dtypes)
+    df_user = pd.read_csv(path_user, dtype=user_dtype)
+    df_content = pd.read_csv(path_content, dtype=content_dtype)
+
+    assert not df_log.empty, "Log data is empty."
+    assert not df_user.empty, "User data is empty."
+    assert not df_content.empty, "Content data is empty."
+
+    return df_log, df_user, df_content
 
 
 def preprocess_log(df_log: pd.DataFrame, df_user: pd.DataFrame) -> pd.DataFrame:
@@ -86,7 +111,7 @@ def preprocess_log(df_log: pd.DataFrame, df_user: pd.DataFrame) -> pd.DataFrame:
     return df_log
 
 
-def save_parquet(df_log: pd.DataFrame, df_user: pd.DataFrame, df_content: pd.DataFrame) -> None:
+def save_parquet(df_log: pd.DataFrame, df_user: pd.DataFrame, df_content: pd.DataFrame, path_output: str) -> None:
     """ 
     Save the preprocessed DataFrames to Parquet files.
 
@@ -95,9 +120,9 @@ def save_parquet(df_log: pd.DataFrame, df_user: pd.DataFrame, df_content: pd.Dat
         df_user (pd.DataFrame): The user information DataFrame.
         df_content (pd.DataFrame): The content information DataFrame.
     """
-    df_log.to_parquet(os.path.join(PATH_OUTPUT ,'Processed_Log_Problem_raw_timestamp.parquet.gzip'))
-    df_user.to_parquet(os.path.join(PATH_OUTPUT ,'Processed_Info_UserData.parquet.gzip'))
-    df_content.to_parquet(os.path.join(PATH_OUTPUT ,'Processed_Info_Content.parquet.gzip'))
+    df_log.to_parquet(os.path.join(path_output ,'Processed_Log_Problem_raw_timestamp.parquet.gzip'))
+    df_user.to_parquet(os.path.join(path_output ,'Processed_Info_UserData.parquet.gzip'))
+    df_content.to_parquet(os.path.join(path_output ,'Processed_Info_Content.parquet.gzip'))
 
 
 def split_experiment_data(df_log: pd.DataFrame, df_user: pd.DataFrame, df_content: pd.DataFrame) -> None:
@@ -140,14 +165,7 @@ if __name__ == "__main__":
     os.makedirs(PATH_TEST, exist_ok=True) 
 
     # Load raw data
-    df_log = pd.read_csv(FILE_LOG_FULL, dtype=log_dtypes)
-    df_user = pd.read_csv(FILE_USER, dtype=user_dtype)
-    df_content = pd.read_csv(FILE_CONTENT, dtype=content_dtype)
-
-    # Ensure the input data is loaded correctly
-    assert not df_log.empty, "Log data is empty."
-    assert not df_user.empty, "User data is empty."
-    assert not df_content.empty, "Content data is empty."
+    df_log, df_user, df_content = load_data_into_df(FILE_LOG_FULL, FILE_USER, FILE_CONTENT)
 
     # Preprocess log data
     df_log = preprocess_log(df_log, df_user)
