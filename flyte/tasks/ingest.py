@@ -8,7 +8,8 @@ from scripts.gcs_utils import download_data_to_tmp
 
 @task
 def fetch_from_gcs(
-    prefix: Literal["raw", "experiment", "feature_store"], local_dir: str = "/tmp/data"
+    prefix: Literal["raw", "experiment", "feature_store", "model"],
+    local_dir: str = "/tmp/data",
 ) -> str:
     """
     General Flyte task to download data from GCS to a specified local directory.
