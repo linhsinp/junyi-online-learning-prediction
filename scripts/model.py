@@ -8,6 +8,9 @@ from sklearn.ensemble import GradientBoostingClassifier
 from pickle import dump
 
 
+# TODO: Set to a small number for quick testing to prevent from overflowing the RAM limit
+NUM_SAMPLES = 50000 # round((df_log.shape[0] / 100))  # 1% of the data for quick testing
+
 # Path
 PATH_FEATURE_STORE = 'data/feature_store'
 PATH_PREPROCESSED_INPUT = 'data/experiment'
@@ -78,7 +81,7 @@ def train_benchmark_model(
 
 def split_data_for_train_and_test(
     df_log: pd.DataFrame, 
-    num_samples: int
+    num_samples: int = NUM_SAMPLES,
 ) -> tuple[np.array, np.array, np.array, np.array]:
     """Split data for train and test.
 
@@ -91,6 +94,9 @@ def split_data_for_train_and_test(
     Returns:
         tuple[np.array, np.array, np.array, np.array]: train and test sets
     """
+
+    if not num_samples:
+        num_samples = df_log.shape[0]
         
     # Load proficiency matrices
     m_concept_proficiency = np.load(FILE_M_CONCEPT_PROFICIENCY)["arr_0"]
@@ -195,10 +201,7 @@ if __name__ == "__main__":
 
     benchmark_model, benchmark_score = train_benchmark_model(df_log, df_user, df_content) # Accuracy (n = 3M) = 0.69 %
 
-    # TODO: Set to a small number for quick testing to prevent from overflowing the RAM limit
-    NUM_SAMPLES = round((df_log.shape[0] / 100))  # 1% of the data for quick testing
-
-    X_train, y_train, X_test, y_test = split_data_for_train_and_test(df_log, NUM_SAMPLES)
+    X_train, y_train, X_test, y_test = split_data_for_train_and_test(df_log)
     X_train, X_test = apply_min_max_transformation(X_train, X_test)
     result_1 = train_and_evaluate_model(X_train, y_train, X_test, y_test, model_type="DecisionTreeClassifier")
     result_2 = train_and_evaluate_model(X_train, y_train, X_test, y_test, model_type="GradientBoostingClassifier")
