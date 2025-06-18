@@ -1,6 +1,7 @@
 from flytekit import workflow
-from tasks.ingest import fetch_from_gcs
-from tasks.preprocess import (
+
+from flyte.tasks.ingest import fetch_from_gcs
+from flyte.tasks.preprocess import (
     preprocess_log_df,
     read_raw_data_into_df,
     save_preprocessed_data,

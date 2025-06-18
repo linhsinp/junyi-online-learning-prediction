@@ -1,11 +1,9 @@
 import os
-from enum import Enum
-from typing import Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
 from flytekit import task
-from flytekit.types.directory import FlyteDirectory
 
 from scripts.train_model import (
     apply_min_max_transformation,
@@ -16,16 +14,9 @@ from scripts.train_model import (
 )
 
 
-class ModelType(Enum):
-    DecisionTree = "DecisionTreeClassifier"
-    GradientBoosting = "GradientBoostingClassifier"
-    LogisticL2 = "LogisticRegression_L2"
-    LogisticL1 = "LogisticRegression_L1"
-
-
 @task
 def load_features(
-    features_path: FlyteDirectory,
+    features_path: str,
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
     """Flyte task to load features into dfs and np.arrays.
 
@@ -35,6 +26,7 @@ def load_features(
     Returns:
         Dataframes with features and additional matrices.
     """
+    print("Loading features into dfs and numpy arrays...")
     path_log_full = os.path.join(features_path, "df_log_with_upid_acc.parquet.gzip")
     df_log = load_data_into_df(path_log_full)
     path_m_concept_proficiency = os.path.join(
@@ -61,6 +53,9 @@ def split_data_and_append_matrices(
     Returns:
         Train and test sets in np.arrays
     """
+    print(
+        "Splitting split data into 80-20% train-test, and append additional matrices..."
+    )
     X_train, y_train, X_test, y_test = split_data_for_train_and_test(
         df_log, m_concept_proficiency, m_proficiency_level4
     )
@@ -68,7 +63,9 @@ def split_data_and_append_matrices(
 
 
 @task
-def transform_data(X_train, X_test):
+def transform_data(
+    X_train: np.ndarray, X_test: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
     """Flyte task to perform min-max transformation.
 
     Args:
@@ -78,6 +75,7 @@ def transform_data(X_train, X_test):
     Returns:
         Train and test sets in np.arrays
     """
+    print("Performing min-max transformation...")
     X_train, X_test = apply_min_max_transformation(X_train, X_test)
     return X_train, X_test
 
@@ -88,9 +86,9 @@ def train_and_evaluate_model_task(
     y_train: np.ndarray,
     X_test: np.ndarray,
     y_test: np.ndarray,
-    model_type: ModelType,
-    model_path: FlyteDirectory,
-) -> dict:
+    model_type: str,
+    model_path: str = "/tmp/model",
+) -> Dict:
     """Flyte task to train and evaluate models.
 
     Args:
@@ -109,6 +107,6 @@ def train_and_evaluate_model_task(
         y_train,
         X_test,
         y_test,
-        model_type=model_type.value,
+        model_type=model_type,
         model_path=model_path,
     )

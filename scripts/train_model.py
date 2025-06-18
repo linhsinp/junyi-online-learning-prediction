@@ -1,5 +1,4 @@
 import os
-from pickle import dump
 
 import numpy as np
 import pandas as pd
@@ -10,7 +9,7 @@ from sklearn.tree import DecisionTreeClassifier
 
 # TODO: Set to a small number for quick testing to prevent from overflowing the RAM limit
 NUM_SAMPLES = (
-    50000  # round((df_log.shape[0] / 100))  # 1% of the data for quick testing
+    10000  # round((df_log.shape[0] / 100))  # 1% of the data for quick testing
 )
 
 # Path
@@ -231,8 +230,8 @@ def train_and_evaluate_model(
     X_test: np.array,
     y_test: np.array,
     model_type: str,
-    path_model: str = PATH_MODEL,
-):
+    model_path: str = PATH_MODEL,
+) -> dict:
     if model_type == "DecisionTreeClassifier":
         model = DecisionTreeClassifier(criterion="entropy", random_state=0).fit(
             X_train, y_train
@@ -254,13 +253,15 @@ def train_and_evaluate_model(
     print("test = " + str(test_score))
 
     metrics = {
-        "model_type": model_type,
         "train_score": train_score,
         "test_score": test_score,
     }
 
-    with open(f"{path_model}/{model_type}.pkl", "wb") as f:
-        dump(model, f, protocol=5)
+    # os.makedirs(model_path, exist_ok=True)
+    # with open(f"{model_path}/{model_type}.pkl", "wb") as f:
+    #     dump(model, f, protocol=5)
+    # with open(f"{model_path}/{model_type}_metrics.json", 'w', encoding='utf-8') as f:
+    #     json.dump(metrics, f, ensure_ascii=False, indent=4)
 
     return metrics
 

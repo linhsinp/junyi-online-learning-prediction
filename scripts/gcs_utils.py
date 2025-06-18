@@ -82,7 +82,7 @@ def download_data_to_tmp(prefix: str, local_dir: str = "/tmp/data"):
     os.makedirs(local_dir, exist_ok=True)
 
     for blob in client.list_blobs(bucket, prefix=prefix):
-        relative_path = blob.name[len(prefix) :].lstrip("/")
+        relative_path = blob.name  # [len(prefix) :].lstrip("/")
         local_path = os.path.join(local_dir, relative_path)
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         blob.download_to_filename(local_path)

@@ -1,5 +1,6 @@
 import os
 
+import pandas as pd
 from flytekit import task
 
 from scripts.preprocess import load_data_into_df, preprocess_log, save_parquet
@@ -27,7 +28,7 @@ def read_raw_data_into_df(working_dir: os.path):
 
 
 @task
-def preprocess_log_df(df_log, df_user):
+def preprocess_log_df(df_log: pd.DataFrame, df_user: pd.DataFrame):
     """
     Flyte task to preprocess the log DataFrame.
 
@@ -47,7 +48,10 @@ def preprocess_log_df(df_log, df_user):
 
 @task
 def save_preprocessed_data(
-    df_log, df_user, df_content, working_dir: os.path
+    df_log: pd.DataFrame,
+    df_user: pd.DataFrame,
+    df_content: pd.DataFrame,
+    working_dir: os.path,
 ) -> os.path:
     """Flyte task to save preprocessed data locally to working directory.
 
