@@ -13,8 +13,17 @@ from scripts.train_model import (
     train_and_evaluate_model,
 )
 
+# train_model_image = ImageSpec(
+#     registry="europe-west3-docker.pkg.dev/junyi-ml-project/junyi-predictor",
+#     name="flyte-gcs-dev",
+#     tag="latest",
+# )
+train_model_image = (
+    "europe-west3-docker.pkg.dev/junyi-ml-project/junyi-predictor/flyte-gcs-dev:latest"
+)
 
-@task
+
+@task(container_image=train_model_image)
 def load_features(
     features_path: str,
 ) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
@@ -39,7 +48,7 @@ def load_features(
     return df_log, m_concept_proficiency, m_proficiency_level4
 
 
-@task
+@task(container_image=train_model_image)
 def split_data_and_append_matrices(
     df_log: pd.DataFrame,
     m_concept_proficiency: np.ndarray,
@@ -62,7 +71,7 @@ def split_data_and_append_matrices(
     return X_train, y_train, X_test, y_test
 
 
-@task
+@task(container_image=train_model_image)
 def transform_data(
     X_train: np.ndarray, X_test: np.ndarray
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -80,7 +89,7 @@ def transform_data(
     return X_train, X_test
 
 
-@task
+@task(container_image=train_model_image)
 def train_and_evaluate_model_task(
     X_train: np.ndarray,
     y_train: np.ndarray,

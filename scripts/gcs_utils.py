@@ -5,12 +5,12 @@ It includes functions to download and upload files to a specified bucket.
 
 import os
 
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from google.cloud import storage
 
-load_dotenv()
+# load_dotenv()
 
-BUCKET_NAME = os.getenv("GCS_BUCKET")
+BUCKET_NAME = "junyi-ml-data-bucket"  # os.getenv("GCS_BUCKET")
 LOCAL_DIR = "data/feature_store"
 REMOTE_DIR = "feature_store"
 
