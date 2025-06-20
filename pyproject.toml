@@ -26,6 +26,7 @@ dependencies = [
   "scikit-learn>=1.7.0",
   "seaborn>=0.13.2",
   "sqlalchemy>=2.0.41",
+  "sqlmodel>=0.0.24",
 ]
 
 [dependency-groups]
