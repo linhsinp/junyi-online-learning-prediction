@@ -1,5 +1,5 @@
 import math
-from datetime import date
+from datetime import date, datetime
 from enum import Enum
 from typing import Optional
 
@@ -41,6 +41,8 @@ ENUM_MAP_CONTENT = {
 
 class InfoContent(SQLModel, table=True):
     __tablename__ = "info_content"
+    __table_args__ = {"extend_existing": True}
+
     ucid: str = Field(primary_key=True)
     content_pretty_name: str
     content_kind: str
@@ -66,6 +68,7 @@ class InfoContent(SQLModel, table=True):
 
 class UserProfile(SQLModel, table=True):
     __tablename__ = "user_profile"
+    __table_args__ = {"extend_existing": True}
 
     uuid: str = Field(primary_key=True)
     gender: Optional[str] = Field(default=None)
@@ -81,8 +84,40 @@ class UserProfile(SQLModel, table=True):
     has_class_cnt: int
 
 
-# def to_enum_aware_dict(row: dict, enum_map: dict[str, Enum]) -> dict:
-#     return {k: enum_map[k](v) if k in enum_map else v for k, v in row.items()}
+# class BoolObjectEnum(str, Enum):
+#     true = "true"
+#     false = "false"
+
+
+class LogProblem(SQLModel, table=True):
+    __tablename__ = "log_problem"
+    __table_args__ = {"extend_existing": True}
+
+    timestamp_TW: Optional[datetime] = Field(default=None)
+    uuid: Optional[str] = Field(foreign_key="user_profile.uuid")
+    ucid: Optional[str] = Field(foreign_key="info_content.ucid")
+    upid: Optional[str] = Field(primary_key=True)
+
+    problem_number: Optional[int] = Field(default=None)
+    exercise_problem_repeat_session: Optional[int] = Field(default=None)
+
+    is_correct: Optional[bool] = Field(default=None)
+    total_sec_taken: Optional[int] = Field(default=None)
+    total_attempt_cnt: Optional[int] = Field(default=None)
+    used_hint_cnt: Optional[int] = Field(default=None)
+    is_hint_used: Optional[bool] = Field(default=None)
+
+    # These are object dtype, likely stringified booleans ('true', 'false', or NaN)
+    is_downgrade: Optional[str] = Field(default=None)
+    is_upgrade: Optional[str] = Field(default=None)
+
+    level: Optional[int] = Field(default=None)
+
+
+# ENUM_MAP_LOG_PROBLEM = {
+#     "is_downgrade": BoolObjectEnum,
+#     "is_upgrade": BoolObjectEnum,
+# }
 
 
 def to_enum_aware_dict(row: dict, enum_map: dict[str, type[Enum]]) -> dict:
@@ -105,6 +140,7 @@ def validate_with_sqlmodel(
     enum_maps = {
         "info_content": ENUM_MAP_CONTENT,
         # "user_profile": ENUM_MAP_USER,
+        # "log_problem": ENUM_MAP_LOG_PROBLEM,
     }
     table_name = getattr(model_class, "__tablename__", None)
     enum_map = enum_maps.get(table_name)
@@ -161,16 +197,20 @@ if __name__ == "__main__":
     df_user["first_login_date_TW"] = pd.to_datetime(
         df_user["first_login_date_TW"]
     ).dt.date
-    # print(type(df_user['first_login_date_TW'].iloc[0])) # <class 'datetime.date'>
     create_dbt_from_df(df_user, UserProfile)
 
+    # create log_problem table
+    df_log["timestamp_TW"] = pd.to_datetime(df_log["timestamp_TW"], errors="coerce")
+    df_log = df_log.where(pd.notnull(df_log), None)
+    create_dbt_from_df(df_log, LogProblem)
+
     # Read first rows the table for checking
-    df_read = pd.read_sql("SELECT * FROM user_profile LIMIT 10;", sqlmodel_engine)
+    df_read = pd.read_sql("SELECT * FROM log_problem LIMIT 10;", sqlmodel_engine)
     print(df_read)
 
-    # Delete/Drop a table
-    from sqlalchemy import text
+    # # Delete/Drop a table
+    # from sqlalchemy import text
 
-    with sqlmodel_engine.connect() as conn:
-        conn.execute(text("DROP TABLE IF EXISTS user_profile"))
-        conn.commit()
+    # with sqlmodel_engine.connect() as conn:
+    #     conn.execute(text("DROP TABLE IF EXISTS user_profile"))
+    #     conn.commit()
