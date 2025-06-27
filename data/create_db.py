@@ -1,11 +1,12 @@
 import math
 from datetime import date, datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Callable, Optional
 
 import numpy as np
 import pandas as pd
 from pydantic import ValidationError
+from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, create_engine
 
 from scripts.preprocess import FILE_CONTENT, FILE_LOG_FULL, FILE_USER, load_data_into_df
@@ -84,17 +85,24 @@ class UserProfile(SQLModel, table=True):
     has_class_cnt: int
 
 
-# class BoolObjectEnum(str, Enum):
-#     true = "true"
-#     false = "false"
+class BoolObjectEnum(str, Enum):
+    true = "True"
+    false = "False"
+    none = "None"
+
+
+ENUM_MAP_LOG_PROBLEM = {
+    "is_downgrade": BoolObjectEnum,
+    "is_upgrade": BoolObjectEnum,
+}
 
 
 class LogProblem(SQLModel, table=True):
     __tablename__ = "log_problem"
     __table_args__ = {"extend_existing": True}
 
-    timestamp_TW: Optional[datetime] = Field(default=None)
-    uuid: Optional[str] = Field(foreign_key="user_profile.uuid")
+    timestamp_TW: Optional[datetime] = Field(primary_key=True)
+    uuid: Optional[str] = Field(primary_key=True)
     ucid: Optional[str] = Field(foreign_key="info_content.ucid")
     upid: Optional[str] = Field(primary_key=True)
 
@@ -108,23 +116,27 @@ class LogProblem(SQLModel, table=True):
     is_hint_used: Optional[bool] = Field(default=None)
 
     # These are object dtype, likely stringified booleans ('true', 'false', or NaN)
-    is_downgrade: Optional[str] = Field(default=None)
-    is_upgrade: Optional[str] = Field(default=None)
+    is_downgrade: Optional[BoolObjectEnum] = Field(default=None)
+    is_upgrade: Optional[BoolObjectEnum] = Field(default=None)
 
     level: Optional[int] = Field(default=None)
 
 
-# ENUM_MAP_LOG_PROBLEM = {
-#     "is_downgrade": BoolObjectEnum,
-#     "is_upgrade": BoolObjectEnum,
-# }
+ENUM_MAPS = {
+    "info_content": ENUM_MAP_CONTENT,
+    # "user_profile": ENUM_MAP_USER,
+    "log_problem": ENUM_MAP_LOG_PROBLEM,
+}
 
 
-def to_enum_aware_dict(row: dict, enum_map: dict[str, type[Enum]]) -> dict:
-    def safe_enum(enum_cls, value):
+def to_enum_aware_dict(row: dict, enum_map: dict[str, type[Enum]]) -> dict[str, Any]:
+    def safe_enum(enum_cls: type[Enum], value: Any) -> Enum | None:
         if value is None or (isinstance(value, float) and math.isnan(value)):
             return None
-        return enum_cls(value)
+        try:
+            return enum_cls(value)
+        except ValueError:
+            return None
 
     return {
         k: safe_enum(enum_map[k], v)
@@ -135,13 +147,14 @@ def to_enum_aware_dict(row: dict, enum_map: dict[str, type[Enum]]) -> dict:
 
 
 def validate_with_sqlmodel(
-    df: pd.DataFrame, model_class: type[SQLModel]
+    df: pd.DataFrame,
+    model_class: type[SQLModel],
+    enum_maps: dict[str, dict[str, type[Enum]]] = ENUM_MAPS,
 ) -> pd.DataFrame:
-    enum_maps = {
-        "info_content": ENUM_MAP_CONTENT,
-        # "user_profile": ENUM_MAP_USER,
-        # "log_problem": ENUM_MAP_LOG_PROBLEM,
-    }
+    """
+    Validate a DataFrame against a SQLModel schema.
+    Automatically applies Enum conversion based on table name.
+    """
     table_name = getattr(model_class, "__tablename__", None)
     enum_map = enum_maps.get(table_name)
 
@@ -158,7 +171,11 @@ def validate_with_sqlmodel(
     return pd.DataFrame(valid_data)
 
 
-def create_dbt_from_df(df: pd.DataFrame, model_class: type[SQLModel]) -> None:
+def create_dbt_from_df(
+    df: pd.DataFrame,
+    model_class: type[SQLModel],
+    enum_maps: dict[str, dict[str, type[Enum]]],
+) -> None:
     """Creat database table from pandas dataframe.
 
     Args:
@@ -167,7 +184,7 @@ def create_dbt_from_df(df: pd.DataFrame, model_class: type[SQLModel]) -> None:
     """
 
     print("Validating data ...")
-    validated_df = validate_with_sqlmodel(df, model_class)
+    validated_df = validate_with_sqlmodel(df, model_class, enum_maps)
 
     # Create the table if it doesn't exist
     SQLModel.metadata.create_all(sqlmodel_engine)
@@ -179,6 +196,44 @@ def create_dbt_from_df(df: pd.DataFrame, model_class: type[SQLModel]) -> None:
         session.add_all(objects)
         session.commit()
         print("Data uploaded to PostgreSQL.")
+
+
+def chunked_upload_with_validation(
+    df: pd.DataFrame,
+    model_class: type[SQLModel],
+    engine: Engine,
+    table_name: str,
+    chunk_size: int = 100_000,
+    enum_maps: Optional[dict[str, Callable]] = ENUM_MAPS,
+):
+    """
+    Validate and upload a large DataFrame in chunks using SQLModel class schema.
+
+    * NOTE: This is an alternative to the create_dbt_from_df function for large datasets.
+
+    Args:
+        df (pd.DataFrame): DataFrame to upload.
+        model_class (type[SQLModel]): SQLModel class for validation.
+        engine (Engine): SQLAlchemy engine for database connection.
+        table_name (str): Name of the target database table.
+        chunk_size (int): Number of rows per chunk.
+        enum_map (Optional[dict[str, Callable]]): Optional mapping for Enum fields.
+    """
+    total_chunks = math.ceil(len(df) / chunk_size)
+    print(f"Starting upload in {total_chunks} chunks...")
+
+    for i in range(0, len(df), chunk_size):
+        chunk = df.iloc[i : i + chunk_size]
+        print(f"Validating rows {i} to {min(i + chunk_size, len(df))}...")
+        validated_chunk = validate_with_sqlmodel(chunk, model_class, enum_maps)
+
+        print(
+            f"Uploading chunk {i // chunk_size + 1}/{total_chunks} with {len(validated_chunk)} valid rows..."
+        )
+        validated_chunk.to_sql(
+            table_name, engine, if_exists="append", index=False, method="multi"
+        )
+    print("All chunks uploaded successfully.")
 
 
 if __name__ == "__main__":
@@ -202,7 +257,13 @@ if __name__ == "__main__":
     # create log_problem table
     df_log["timestamp_TW"] = pd.to_datetime(df_log["timestamp_TW"], errors="coerce")
     df_log = df_log.where(pd.notnull(df_log), None)
-    create_dbt_from_df(df_log, LogProblem)
+    chunked_upload_with_validation(
+        df=df_log,
+        model_class=LogProblem,
+        engine=sqlmodel_engine,
+        table_name="log_problem",
+        chunk_size=100_000,
+    )
 
     # Read first rows the table for checking
     df_read = pd.read_sql("SELECT * FROM log_problem LIMIT 10;", sqlmodel_engine)
@@ -210,7 +271,6 @@ if __name__ == "__main__":
 
     # # Delete/Drop a table
     # from sqlalchemy import text
-
     # with sqlmodel_engine.connect() as conn:
-    #     conn.execute(text("DROP TABLE IF EXISTS user_profile"))
+    #     conn.execute(text("DROP TABLE IF EXISTS log_problem;"))
     #     conn.commit()
