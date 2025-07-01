@@ -265,9 +265,13 @@ if __name__ == "__main__":
         chunk_size=100_000,
     )
 
-    # Read first rows the table for checking
-    df_read = pd.read_sql("SELECT * FROM log_problem LIMIT 10;", sqlmodel_engine)
-    print(df_read)
+    # # Read first rows the table for checking
+    # df_read1 = pd.read_sql("SELECT * FROM info_content LIMIT 10;", sqlmodel_engine)
+    # df_read2 = pd.read_sql("SELECT * FROM user_profile LIMIT 10;", sqlmodel_engine)
+    # df_read3 = pd.read_sql("SELECT * FROM log_problem LIMIT 10;", sqlmodel_engine)
+    # print(df_read1)
+    # print(df_read2)
+    # print(df_read3)
 
     # # Delete/Drop a table
     # from sqlalchemy import text

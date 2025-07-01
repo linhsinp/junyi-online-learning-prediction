@@ -4,8 +4,10 @@ The aim is to predict whether a student will answer a problem correct given the 
 """
 
 import os
+from datetime import datetime
 
 import pandas as pd
+from sqlalchemy import Engine
 
 # For training, exclude the selected variables which do not exist before a student takes the exercise
 VARS_REDUNDANT = ["total_sec_taken", "is_hint_used", "is_downgrade", "is_upgrade"]
@@ -74,6 +76,49 @@ def load_data_into_df(
     return df_log, df_user, df_content
 
 
+def load_df_from_dbt(
+    start_date: datetime, end_date: datetime, sqlmodel_engine: Engine
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Load data from the database using SQL queries.
+
+    This function retrieves log data, user information, and content information
+    from the database within a specified date range.
+
+    Args:
+        start_date (datetime): Start date for filtering log data.
+        end_date (datetime): End date for filtering log data.
+        sqlmodel_engine (Engine): SQLAlchemy engine for database connection.
+
+    Returns:
+        df_log (pd.DataFrame): The DataFrame containing log data.
+        df_user (pd.DataFrame): The DataFrame containing user information.
+        df_content (pd.DataFrame): The DataFrame containing content information.
+    """
+    log_query = """
+        SELECT *
+        FROM log_problem
+        WHERE "timestamp_TW" >= %(start)s
+        AND "timestamp_TW" < %(end)s
+        """
+    df_log = pd.read_sql(
+        log_query, sqlmodel_engine, params={"start": start_date, "end": end_date}
+    )
+
+    selected_uuid = df_log["uuid"].unique().tolist()
+    user_query = """
+        SELECT *
+        FROM user_profile
+        WHERE uuid = ANY(%(selected_uuid)s)
+        """
+    df_user = pd.read_sql(
+        user_query, sqlmodel_engine, params={"selected_uuid": selected_uuid}
+    )
+
+    df_content = pd.read_sql("SELECT * FROM info_content;", sqlmodel_engine)
+
+    return df_log, df_user, df_content
+
+
 def preprocess_log(df_log: pd.DataFrame, df_user: pd.DataFrame) -> pd.DataFrame:
     """
     Preprocess the log DataFrame by merging with user data, sorting, and encoding categorical variables.
@@ -122,9 +167,7 @@ def save_parquet(
         df_user (pd.DataFrame): The user information DataFrame.
         df_content (pd.DataFrame): The content information DataFrame.
     """
-    df_log.to_parquet(
-        os.path.join(path_output, "Processed_Log_Problem_raw_timestamp.parquet.gzip")
-    )
+    df_log.to_parquet(os.path.join(path_output, "Processed_Log_Problem.parquet.gzip"))
     df_user.to_parquet(
         os.path.join(path_output, "Processed_Info_UserData.parquet.gzip")
     )

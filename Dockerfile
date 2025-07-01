@@ -12,14 +12,14 @@ RUN apt-get update && apt-get install -y \
     unzip \
     && rm -rf /var/lib/apt/lists/*
 
-# Create directory for credentials
-RUN mkdir -p /opt/keys
+# # Create directory for credentials
+# RUN mkdir -p /opt/keys
 
-# Copy your GCS service account key
-COPY gcs-service-account.json /opt/keys/gcs-service-account.json
+# # Copy your GCS service account key
+# COPY gcs-service-account.json /opt/keys/gcs-service-account.json
 
-# Set the environment variable for GCS auth
-ENV GOOGLE_APPLICATION_CREDENTIALS="/opt/keys/gcs-service-account.json"
+# # Set the environment variable for GCS auth
+# ENV GOOGLE_APPLICATION_CREDENTIALS="/opt/keys/gcs-service-account.json"
 
 # --- Install uv (prebuilt binary) ---
 RUN curl -sSfL https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-musl.tar.gz \
