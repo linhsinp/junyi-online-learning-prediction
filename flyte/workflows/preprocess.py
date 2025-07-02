@@ -1,26 +1,25 @@
+import os
 from datetime import datetime
 
 from flytekit import workflow
+from flytekit.types.file import FlyteFile
 
-from flyte.tasks.preprocess import (
-    preprocess_log_df,
-    read_raw_data_into_df,
-    save_preprocessed_data,
-)
+from flyte.tasks.preprocess import load_from_dbt_and_preprocess_data, save_df_to_s3_task
 
-PATH_OUTPUT = "data/demo"
+PATH_OUTPUT = "/tmp/data/preprocessed"
+os.makedirs(PATH_OUTPUT, exist_ok=True)
 
 
 @workflow
-def preprocessing_wf() -> str:
-    """Flyte workflow to preprocess raw csv files.
+def preprocessing_wf() -> tuple[FlyteFile, FlyteFile, FlyteFile]:
+    """Flyte workflow to preprocess raw input data from database.
 
     Returns:
-        str: Local preprocessed path
+        tuple[FlyteFile, FlyteFile, FlyteFile]: Paths to the preprocessed log, user, and content data files.
     """
-    df_log, df_user, df_content = read_raw_data_into_df(
+    df_log, df_user, df_content = load_from_dbt_and_preprocess_data(
         start_date=datetime(2019, 6, 1), end_date=datetime(2019, 6, 10)
     )
-    df_log = preprocess_log_df(df_log, df_user)
-    preprocessed_path = save_preprocessed_data(df_log, df_user, df_content, PATH_OUTPUT)
-    return preprocessed_path
+    return save_df_to_s3_task(
+        df_log=df_log, df_user=df_user, df_content=df_content, working_dir=PATH_OUTPUT
+    )
