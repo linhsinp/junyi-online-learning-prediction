@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from typing import Optional
 
 from dotenv import load_dotenv
 from flytekit import Resources, task, workflow
@@ -31,9 +32,23 @@ custom_image = "linhsinp/junyi-predictor-image:latest"
 def full_pipeline_task(
     start_date: datetime = datetime(2019, 6, 1),
     end_date: datetime = datetime(2019, 6, 10),
+    num_samples: Optional[
+        int
+    ] = None,  # Number of samples to use for training and testing
 ) -> dict:
     """
     Full ML pipeline: raw ingestion → preprocessing → feature engineering → training and evaluation.
+
+    This function orchestrates the entire process, from loading raw data to training and evaluating models.
+
+    Args:
+        start_date (datetime): Start date for data ingestion.
+        end_date (datetime): End date for data ingestion.
+        num_samples (int): Number of samples to use for training and testing. If None,
+                           all available data will be used.
+
+    Returns:
+        dict: A dictionary containing evaluation metrics for each model.
     """
     # Load raw data from the database and preprocess it
     print(
@@ -85,7 +100,7 @@ def full_pipeline_task(
         df_log,
         m_concept_proficiency,
         m_proficiency_level4,
-        num_samples=10000,  # Adjust as needed
+        num_samples=num_samples,
     )
 
     # Data transformation
@@ -123,8 +138,22 @@ def full_pipeline_task(
 def full_pipeline_wf(
     start_date: datetime = datetime(2019, 6, 1),
     end_date: datetime = datetime(2019, 6, 10),
+    num_samples: Optional[
+        int
+    ] = 50000,  # Number of samples to use for training and testing
 ) -> dict:
     """
     Full ML pipeline workflow that orchestrates the entire process from raw data ingestion to model training and evaluation.
+
+    Args:
+        start_date (datetime): Start date for data ingestion.
+        end_date (datetime): End date for data ingestion.
+        num_samples (int): Number of samples to use for training and testing. If None,
+                           all available data will be used.
+
+    Returns:
+        dict: A dictionary containing evaluation metrics for each model.
     """
-    return full_pipeline_task(start_date=start_date, end_date=end_date)
+    return full_pipeline_task(
+        start_date=start_date, end_date=end_date, num_samples=num_samples
+    )

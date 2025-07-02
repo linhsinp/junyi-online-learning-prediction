@@ -118,7 +118,7 @@ def split_data_for_train_and_test(
     df_log: pd.DataFrame,
     m_concept_proficiency: np.array,
     m_proficiency_level4: np.array,
-    num_samples: int = NUM_SAMPLES,
+    num_samples: int = None,
 ) -> tuple[np.array, np.array, np.array, np.array]:
     """Split data for train and test.
 
@@ -132,8 +132,10 @@ def split_data_for_train_and_test(
         tuple[np.array, np.array, np.array, np.array]: train and test sets
     """
 
-    if not num_samples:
+    if num_samples is None:
         num_samples = df_log.shape[0]
+
+    print(f"Number of samples used for training and testing = {num_samples}")
 
     np.random.seed(760)
     num_train_samples = int(num_samples * 0.8)
