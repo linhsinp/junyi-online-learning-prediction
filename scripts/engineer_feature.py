@@ -71,7 +71,7 @@ def create_upid_acc(df_log: pd.DataFrame) -> pd.DataFrame:
 
 def create_concept_proficiency(
     df_log: pd.DataFrame, list_concept_id: np.array, dict_concept_id: dict
-) -> None:
+) -> np.array:
     """
     Create concept proficiency matrix based on user logs and content data. (# logs, # concept id)
 
@@ -82,7 +82,7 @@ def create_concept_proficiency(
         list_concept_id (np.array): An array of unique concept IDs.
 
     Returns:
-        pd.DataFrame: The log DataFrame with an added column for concept proficiency.
+        np.array: The log DataFrame with an added column for concept proficiency.
     """
     m_concept_proficiency = np.empty(
         (len(df_log), len(list_concept_id)), dtype="float16"
@@ -99,6 +99,7 @@ def create_concept_proficiency(
     np.savez_compressed(
         os.path.join(PATH_FEATURE_STORE, "m_concept_proficiency"), m_concept_proficiency
     )
+    return m_concept_proficiency
 
 
 def create_level4_proficiency_matrix(
@@ -110,7 +111,7 @@ def create_level4_proficiency_matrix(
     dict_level4_id: dict,
     list_user_id: pd.Categorical,
     dict_user_id: dict,
-) -> None:
+) -> np.array:
     """
     Create a proficiency matrix for level-4 categories based on user logs and content data. (# logs, # level4 id)
 
@@ -128,7 +129,7 @@ def create_level4_proficiency_matrix(
         dict_user_id (dict): A dictionary mapping user IDs to their indices.
 
     Returns:
-        None: Saves the proficiency matrix as a compressed numpy file.
+        np.array: Saves the proficiency matrix as a compressed numpy file.
     """
     # Check if df_content has the required columns
     required_columns = {"ucid", "level4_id"}
@@ -182,6 +183,8 @@ def create_level4_proficiency_matrix(
     np.savez_compressed(
         os.path.join(PATH_FEATURE_STORE, "m_proficiency_level4"), m_proficiency
     )
+
+    return m_proficiency
 
 
 def load_proficiency_matrix():
