@@ -17,11 +17,14 @@ def preprocessing_wf(
 ) -> tuple[StructuredDataset, StructuredDataset, StructuredDataset]:
     """Flyte workflow to preprocess raw input data from database.
 
+    Args:
+        start_date (datetime): Start date for data preprocessing.
+        end_date (datetime): End date for data preprocessing.
+
     Returns:
-        tuple[FlyteFile, FlyteFile, FlyteFile]: Paths to the preprocessed log, user, and content data files.
+        tuple[StructuredDataset, StructuredDataset, StructuredDataset]`: Preprocessed log, user, and content data.
     """
     df_log, df_user, df_content = load_from_dbt_and_preprocess_data(
         start_date=start_date, end_date=end_date
     )
-    # If your task returns DataFrames, just return them directly
     return df_log, df_user, df_content
