@@ -1,69 +1,93 @@
 import os
+from datetime import datetime
 
 import pandas as pd
-from flytekit import task
+from dotenv import load_dotenv
+from flytekit import StructuredDataset, task
+from flytekit.types.file import FlyteFile
+from sqlalchemy import create_engine
 
-from scripts.preprocess import load_data_into_df, preprocess_log, save_parquet
+from scripts.preprocess import load_df_from_dbt, preprocess_log
+
+load_dotenv()
 
 
-@task
-def read_raw_data_into_df(working_dir: os.path):
-    """Flyte task to read raw csv files into pandas dataframe.
+custom_image = "linhsinp/junyi-predictor-image:latest"
+
+
+@task(container_image=custom_image)
+def load_from_dbt_and_preprocess_data(
+    start_date: datetime,
+    end_date: datetime,
+) -> tuple[StructuredDataset, StructuredDataset, StructuredDataset]:
+    """
+    Flyte task to preprocess DataFrames loaded from database tables.
+
+    This function loads log data, user information, and content information
+    from the database using SQL queries within a specified date range,
+    preprocesses the log data by merging it with user data, sorting, and encoding categorical variables.
 
     Args:
-        working_dir (os.path): Working directory containing data downloaded from GCS.
-
+        start_date (datetime): Start date for filtering log data.
+        end_date (datetime): End date for filtering log data.
+        working_dir (str): Working directory to save preprocessed data.
     Returns:
-        df_log (pd.DataFrame): The DataFrame containing log data.
-        df_user (pd.DataFrame): The DataFrame containing user information.
-        df_content (pd.DataFrame): The DataFrame containing content information.
+        str: Path to the working directory containing preprocessed data.
     """
-    path_log_full = os.path.join(working_dir, "Log_Problem.csv")
-    path_user = os.path.join(working_dir, "Info_UserData.csv")
-    path_content = os.path.join(working_dir, "Info_Content.csv")
-    df_log, df_user, df_content = load_data_into_df(
-        path_log_full, path_user, path_content
+    print(
+        f"Reading raw data from {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}..."
     )
-    return df_log, df_user, df_content
-
-
-@task
-def preprocess_log_df(df_log: pd.DataFrame, df_user: pd.DataFrame):
-    """
-    Flyte task to preprocess the log DataFrame.
-
-    Args:
-        df_log (pd.DataFrame): The DataFrame containing log data.
-        df_user (pd.DataFrame): The DataFrame containing user information.
-
-    Returns:
-        pd.DataFrame: The preprocessed DataFrame.
-    """
+    db_url = os.environ["DATABASE_URL"]
+    sqlmodel_engine = create_engine(db_url)
+    df_log, df_user, df_content = load_df_from_dbt(
+        start_date, end_date, sqlmodel_engine
+    )
     print(
         "Preprocessing log df by merging with user data, sorting, and encoding categorical variables."
     )
     df_log = preprocess_log(df_log, df_user)
-    return df_log
+    return (
+        StructuredDataset(df_log),
+        StructuredDataset(df_user),
+        StructuredDataset(df_content),
+    )
 
 
-@task
-def save_preprocessed_data(
-    df_log: pd.DataFrame,
-    df_user: pd.DataFrame,
-    df_content: pd.DataFrame,
-    working_dir: os.path,
-) -> os.path:
-    """Flyte task to save preprocessed data locally to working directory.
+@task(container_image=custom_image)
+def save_df_to_s3_task(
+    df_log: StructuredDataset,
+    df_user: StructuredDataset,
+    df_content: StructuredDataset,
+    working_dir: str,
+) -> tuple[FlyteFile, FlyteFile, FlyteFile]:
+    """Flyte task to save DataFrames to S3 as Parquet files.
+
+    This function saves the log data, user information, and content information.
 
     Args:
-        df_log (pd.DataFrame): The preprocessed DataFrame containing log data.
-        df_user (pd.DataFrame): The preprocessedDataFrame containing user information.
-        df_content (pd.DataFrame): The preprocessedDataFrame containing content information.
-        working_dir (os.path): Working directory containing data downloaded from GCS.
+        df_log (pd.DataFrame): The DataFrame containing log data.
+        df_user (pd.DataFrame): The DataFrame containing user information.
+        df_content (pd.DataFrame): The DataFrame containing content information.
+        local_path (str): Local path to save the Parquet files.
 
     Returns:
-        os.path: Path to the downloaded data on the local filesystem.
+        tuple[FlyteFile, FlyteFile, FlyteFile]: Paths to the saved Parquet files
+        containing log data, user information, and content information.
     """
-    save_parquet(df_log, df_user, df_content, working_dir)
-    print(f"Preprocessed data saved to {working_dir}.")
-    return working_dir
+    # Convert StructuredDataset to actual DataFrames
+    df_log = df_log.open(pd.DataFrame).all()
+    df_user = df_user.open(pd.DataFrame).all()
+    df_content = df_content.open(pd.DataFrame).all()
+    print("Saving preprocessed data to S3 as Parquet files...")
+    df_log.to_parquet(os.path.join(working_dir, "Processed_Log_Problem.parquet.gzip"))
+    log_path = f"{working_dir}/Processed_Log_Problem.parquet.gzip"
+    df_user.to_parquet(
+        os.path.join(working_dir, "Processed_Info_UserData.parquet.gzip")
+    )
+    user_path = f"{working_dir}/Processed_Info_UserData.parquet.gzip"
+    df_content.to_parquet(
+        os.path.join(working_dir, "Processed_Info_Content.parquet.gzip")
+    )
+    content_path = f"{working_dir}/Processed_Info_Content.parquet.gzip"
+    # Return as FlyteFile, which will handle upload to S3/Minio
+    return FlyteFile(log_path), FlyteFile(user_path), FlyteFile(content_path)
