@@ -32,6 +32,30 @@ make test
 make lint
 ```
 
+## Deploy to Kubernetes
+
+Use Terraform and Helm for different responsibilities:
+
+- `infra/terraform/` provisions cloud resources such as the GCS bucket and IAM bindings.
+- `infra/helm/junyi-predictor/` defines Kubernetes runtime workloads and cluster-level configuration.
+- `infra/docker/` contains the Dockerfiles used to build runtime images.
+
+Render the default one-off training job:
+
+```bash
+helm template junyi ./infra/helm/junyi-predictor \
+  -f ./infra/helm/junyi-predictor/values-full-pipeline.yaml
+```
+
+Install a scheduled GCS-backed training workload:
+
+```bash
+helm upgrade --install junyi ./infra/helm/junyi-predictor \
+  -f ./infra/helm/junyi-predictor/values-train-from-gcs.yaml
+```
+
+Point `secretEnv` entries in the values files at existing Kubernetes secrets for `DATABASE_URL` or cloud credentials.
+
 ## Run Flyte Locally
 
 Run the end-to-end workflow:
@@ -59,6 +83,9 @@ make flyte-train-local
 - `junyi_predictor/pipeline/feature_engineering.py`: feature engineering stage contract and transformations.
 - `junyi_predictor/pipeline/training.py`: training split and model execution helpers.
 - `data/create_db.py`: utility for creating and loading PostgreSQL tables from raw CSV files.
+- `infra/docker/`: container build definitions for local and cluster execution.
+- `infra/helm/junyi-predictor/`: Kubernetes packaging for one-off and scheduled runtime workloads.
+- `infra/terraform/`: cloud infrastructure provisioning.
 
 ## Outputs
 

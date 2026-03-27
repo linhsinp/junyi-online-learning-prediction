@@ -1,0 +1,22 @@
+workload:
+  kind: CronJob
+  command:
+    - uv
+    - run
+    - flyte
+    - run
+    - --local
+    - orchestration/flyte_app.py
+    - train_from_gcs
+  args:
+    - --prefix
+    - feature_store
+    - --local_dir
+    - /tmp/data
+  schedule: "0 4 * * *"
+
+secretEnv:
+  GOOGLE_APPLICATION_CREDENTIALS:
+    enabled: true
+    secretName: junyi-predictor-gcp
+    secretKey: GOOGLE_APPLICATION_CREDENTIALS
