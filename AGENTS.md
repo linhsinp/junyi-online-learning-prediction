@@ -23,7 +23,7 @@ Follow existing Python style: 4-space indentation, type hints on new or changed 
 Tests use `pytest`. Add new tests under `tests/` with filenames named `test_*.py` and test functions named `test_*`. Prefer focused unit tests with fixtures and mocks, following [tests/test_gcs_utils.py](/Users/hsin-pei/Desktop/github_repo/junyi-online-learning-prediction/tests/test_gcs_utils.py). Run `uv run pytest` before opening a PR; add regression coverage for any bug fix or data-path change.
 
 ## Commit & Pull Request Guidelines
-Recent commits use short, imperative messages such as `clean up tasks and workflows` and `create scheduled launch plan`. Keep that style, with one logical change per commit. PRs should include a concise summary, affected areas, test evidence, and linked issues. Include screenshots only for UI or notebook-output changes.
+Use short, imperative commit messages with a leading gitmoji, for example `:memo: refresh local workflow docs` or `:recycle: modularize pipeline stages`. Keep one logical change per commit. PRs should include a concise summary, affected areas, test evidence, and linked issues. Include screenshots only for UI or notebook-output changes.
 
 ## Security & Configuration Tips
 Do not commit secrets or local credentials. This repository contains local-only files such as `.env`, `kaggle.json`, and `gcs-service-account.json`; treat them as developer machine state and use environment variables for production configuration.
