@@ -1,0 +1,69 @@
+image:
+  repository: ghcr.io/linhsinp/junyi-online-learning-prediction
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+workload:
+  kind: Job
+  command:
+    - uv
+    - run
+    - flyte
+    - run
+    - --local
+    - orchestration/flyte_app.py
+    - full_pipeline
+  args:
+    - --start_date
+    - "2019-06-01T00:00:00"
+    - --end_date
+    - "2019-06-10T00:00:00"
+    - --num_samples
+    - "1000"
+  restartPolicy: Never
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  schedule: "0 3 * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  concurrencyPolicy: Forbid
+
+env:
+  PYTHONPATH: /app
+
+envFromSecrets: []
+
+secretEnv:
+  DATABASE_URL:
+    enabled: false
+    secretName: ""
+    secretKey: DATABASE_URL
+  GOOGLE_APPLICATION_CREDENTIALS:
+    enabled: false
+    secretName: ""
+    secretKey: GOOGLE_APPLICATION_CREDENTIALS
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

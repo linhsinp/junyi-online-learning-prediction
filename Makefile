@@ -4,13 +4,14 @@ START_DATE ?= 2019-06-01T00:00:00
 END_DATE ?= 2019-06-10T00:00:00
 NUM_SAMPLES ?= 1000
 
-.PHONY: help test lint flyte-local flyte-preprocess-local flyte-train-local
+.PHONY: help test lint helm-lint flyte-local flyte-preprocess-local flyte-train-local
 
 help:
 	@echo "Available targets:"
 	@echo "  $(UV) sync --all-groups"
 	@echo "  make test"
 	@echo "  make lint"
+	@echo "  make helm-lint"
 	@echo "  make flyte-local START_DATE=... END_DATE=... NUM_SAMPLES=..."
 	@echo "  make flyte-preprocess-local START_DATE=... END_DATE=..."
 	@echo "  make flyte-train-local"
@@ -20,6 +21,9 @@ test:
 
 lint:
 	$(UV) run ruff check junyi_predictor orchestration data tests
+
+helm-lint:
+	helm lint ./infra/helm/junyi-predictor
 
 flyte-local:
 	@set -a; [ -f .env ] && . ./.env; set +a; \

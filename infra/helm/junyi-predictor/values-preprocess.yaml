@@ -1,0 +1,21 @@
+workload:
+  kind: Job
+  command:
+    - uv
+    - run
+    - flyte
+    - run
+    - --local
+    - orchestration/flyte_app.py
+    - preprocess_from_database
+  args:
+    - --start_date
+    - "2019-06-01T00:00:00"
+    - --end_date
+    - "2019-06-10T00:00:00"
+
+secretEnv:
+  DATABASE_URL:
+    enabled: true
+    secretName: junyi-predictor-db
+    secretKey: DATABASE_URL
