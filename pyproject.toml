@@ -2,7 +2,7 @@
 
 [project]
 name = "junyi-predictor"
-version = "0.1.0"
+version = "0.2.0"
 description = "Junyi acadamy platform performance prediction"
 authors = [
     {name = "Lin, Hsin-Pei", email = "linhsinp@gmail.com"},
@@ -13,7 +13,8 @@ dependencies = [
   "dotenv>=0.9.9",
   "fastparquet>=2024.11.0",
   "flask>=3.1.1",
-  "flytekit>=1.16.0",
+  "flyte>=2.0.6,<3",
+  "google-cloud-storage>=3.1.0",
   "isort>=6.0.1",
   "kaggle>=1.7.4.5",
   "matplotlib>=3.10.3",
