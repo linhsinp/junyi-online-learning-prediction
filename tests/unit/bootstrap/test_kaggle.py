@@ -14,8 +14,8 @@ def test_download_kaggle_data_authenticates_and_downloads(monkeypatch, tmp_path)
             calls.append((dataset, path, unzip))
 
     monkeypatch.setattr(
-        "junyi_predictor.bootstrap.kaggle.KaggleApi",
-        lambda: FakeApi(),
+        "junyi_predictor.bootstrap.kaggle._get_kaggle_api_class",
+        lambda: FakeApi,
     )
 
     destination = tmp_path / "raw"
