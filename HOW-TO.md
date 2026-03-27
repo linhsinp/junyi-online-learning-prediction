@@ -82,15 +82,16 @@ make flyte-train-local
 - `junyi_predictor/pipeline/preprocessing.py`: preprocessing stage contract and transformations.
 - `junyi_predictor/pipeline/feature_engineering.py`: feature engineering stage contract and transformations.
 - `junyi_predictor/pipeline/training.py`: training split and model execution helpers.
-- `data/create_db.py`: utility for creating and loading PostgreSQL tables from raw CSV files.
+- `junyi_predictor/bootstrap/database.py`: utility for creating and loading PostgreSQL tables from raw artifact files.
+- `junyi_predictor/bootstrap/kaggle.py`: utility for downloading the raw Kaggle dataset into local artifacts.
 - `infra/docker/`: container build definitions for local and cluster execution.
 - `infra/helm/junyi-predictor/`: Kubernetes packaging for one-off and scheduled runtime workloads.
 - `infra/terraform/`: cloud infrastructure provisioning.
 
 ## Outputs
 
-- Intermediate local artifacts: `data/output/`, `data/experiment/`, `data/feature_store/`
-- Model artifacts: `model/`
+- Intermediate local artifacts: `artifacts/data/output/`, `artifacts/data/experiment/`, `artifacts/data/feature_store/`
+- Model artifacts: `artifacts/model/`
 - Architecture reference: `docs/current-system-design.md`
 
 ## Troubleshooting

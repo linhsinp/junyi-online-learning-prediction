@@ -2,22 +2,31 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from datetime import datetime
 
 import pandas as pd
 from sqlalchemy import Engine
 
-VARS_REDUNDANT = ["total_sec_taken", "is_hint_used", "is_downgrade", "is_upgrade"]
-PATH_INPUT = "data/raw"
-PATH_OUTPUT = "data/output"
-PATH_EXPERIMENT = "data/experiment"
-PATH_TEST = "data/test"
+from junyi_predictor.paths import (
+    CONTENT_FILE,
+    EXPERIMENT_DATA_DIR,
+    LOG_FILE,
+    OUTPUT_DATA_DIR,
+    RAW_DATA_DIR,
+    TEST_DATA_DIR,
+    USER_FILE,
+)
 
-FILE_LOG_FULL = os.path.join(PATH_INPUT, "Log_Problem.csv")
-FILE_USER = os.path.join(PATH_INPUT, "Info_UserData.csv")
-FILE_CONTENT = os.path.join(PATH_INPUT, "Info_Content.csv")
+VARS_REDUNDANT = ["total_sec_taken", "is_hint_used", "is_downgrade", "is_upgrade"]
+PATH_INPUT = str(RAW_DATA_DIR)
+PATH_OUTPUT = str(OUTPUT_DATA_DIR)
+PATH_EXPERIMENT = str(EXPERIMENT_DATA_DIR)
+PATH_TEST = str(TEST_DATA_DIR)
+
+FILE_LOG_FULL = str(LOG_FILE)
+FILE_USER = str(USER_FILE)
+FILE_CONTENT = str(CONTENT_FILE)
 
 
 @dataclass(frozen=True)

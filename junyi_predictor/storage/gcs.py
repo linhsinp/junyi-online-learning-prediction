@@ -4,8 +4,10 @@ import os
 
 from google.cloud import storage
 
+from junyi_predictor.paths import FEATURE_STORE_DIR
+
 BUCKET_NAME = "junyi-ml-data-bucket"
-LOCAL_DIR = "data/feature_store"
+LOCAL_DIR = str(FEATURE_STORE_DIR)
 REMOTE_DIR = "feature_store"
 
 
