@@ -3,7 +3,7 @@ from typing import Literal
 
 from flytekit import task
 
-from scripts.gcs_utils import download_data_to_tmp
+from junyi_predictor.storage.gcs import download_data_to_tmp
 
 
 @task

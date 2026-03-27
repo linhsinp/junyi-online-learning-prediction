@@ -5,11 +5,11 @@ import numpy as np
 import pandas as pd
 from flytekit import task
 
-from scripts.train_model import (
+from junyi_predictor.pipeline.training import (
     apply_min_max_transformation,
-    load_data_into_df,
-    load_matrices,
-    split_data_for_train_and_test,
+    load_feature_matrices,
+    load_parquet_dataframe,
+    split_training_data,
     train_and_evaluate_model,
 )
 
@@ -30,12 +30,12 @@ def load_features(
     """
     print("Loading features into dfs and numpy arrays...")
     path_log_full = os.path.join(features_path, "df_log_with_upid_acc.parquet.gzip")
-    df_log = load_data_into_df(path_log_full)
+    df_log = load_parquet_dataframe(path_log_full)
     path_m_concept_proficiency = os.path.join(
         features_path, "m_concept_proficiency.npz"
     )
     path_m_proficiency_level4 = os.path.join(features_path, "m_proficiency_level4.npz")
-    m_concept_proficiency, m_proficiency_level4 = load_matrices(
+    m_concept_proficiency, m_proficiency_level4 = load_feature_matrices(
         path_m_concept_proficiency, path_m_proficiency_level4
     )
     return df_log, m_concept_proficiency, m_proficiency_level4
@@ -58,10 +58,8 @@ def split_data_and_append_matrices(
     print(
         "Splitting split data into 80-20% train-test, and append additional matrices..."
     )
-    X_train, y_train, X_test, y_test = split_data_for_train_and_test(
-        df_log, m_concept_proficiency, m_proficiency_level4
-    )
-    return X_train, y_train, X_test, y_test
+    split = split_training_data(df_log, m_concept_proficiency, m_proficiency_level4)
+    return split.X_train, split.y_train, split.X_test, split.y_test
 
 
 @task(container_image=custom_image)

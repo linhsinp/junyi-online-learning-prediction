@@ -6,15 +6,16 @@ from dotenv import load_dotenv
 from flytekit import Resources, task, workflow
 from sqlalchemy import create_engine
 
-from scripts.engineer_feature import (
-    create_concept_proficiency,
-    create_level4_proficiency_matrix,
-    create_upid_acc,
+from junyi_predictor.pipeline.feature_engineering import (
+    build_feature_stage,
 )
-from scripts.preprocess import load_df_from_dbt, preprocess_log
-from scripts.train_model import (
+from junyi_predictor.pipeline.preprocessing import (
+    load_data_from_database,
+    preprocess_stage,
+)
+from junyi_predictor.pipeline.training import (
     apply_min_max_transformation,
-    split_data_for_train_and_test,
+    split_training_data,
     train_and_evaluate_model,
 )
 
@@ -56,56 +57,31 @@ def full_pipeline_task(
     )
     db_url = os.environ["DATABASE_URL"]
     sqlmodel_engine = create_engine(db_url)
-    df_log, df_user, df_content = load_df_from_dbt(
+    df_log, df_user, df_content = load_data_from_database(
         start_date, end_date, sqlmodel_engine
     )
-    print(
-        "Preprocessing log df by merging with user data, sorting, and encoding categorical variables."
+    preprocessed = preprocess_stage(
+        df_log=df_log, df_user=df_user, df_content=df_content
     )
-    df_log = preprocess_log(df_log, df_user)
 
-    # Feature engineering
-    print("Starting UPID accuracy feature engineering...")
-    df_log = create_upid_acc(df_log)
-    print("UPID accuracy feature engineering completed.")
-    print("Starting concept proficiency feature engineering...")
-    list_concept_id = df_content.ucid.to_numpy()
-    dict_concept_id = {id: order for order, id in enumerate(list_concept_id)}
-    m_concept_proficiency = create_concept_proficiency(
-        df_log, list_concept_id, dict_concept_id
+    feature_output = build_feature_stage(
+        df_log=preprocessed.log,
+        df_user=preprocessed.user,
+        df_content=preprocessed.content,
     )
-    print("Concept proficiency feature engineering completed.")
-    print("Starting level-4 proficiency feature engineering...")
-    list_concept_id = df_content.ucid.to_numpy()
-    dict_concept_id = {id: order for order, id in enumerate(list_concept_id)}
-    list_level4_id = df_content.level4_id.unique()
-    dict_level4_id = {id: order for order, id in enumerate(list_level4_id)}
-    list_user_id = df_user["uuid"].unique()
-    dict_user_id = {id: order for order, id in enumerate(list_user_id)}
-    m_proficiency_level4 = create_level4_proficiency_matrix(
-        df_log,
-        df_content,
-        list_concept_id,
-        dict_concept_id,
-        list_level4_id,
-        dict_level4_id,
-        list_user_id,
-        dict_user_id,
-    )
-    print("Level-4 proficiency feature engineering completed.")
 
     # Data splitting
     print("Loading features into DataFrames and numpy arrays...")
-    X_train, y_train, X_test, y_test = split_data_for_train_and_test(
-        df_log,
-        m_concept_proficiency,
-        m_proficiency_level4,
+    split = split_training_data(
+        feature_output.log,
+        feature_output.concept_proficiency,
+        feature_output.level4_proficiency,
         num_samples=num_samples,
     )
 
     # Data transformation
     print("Applying Min-Max transformation to the data...")
-    X_train, X_test = apply_min_max_transformation(X_train, X_test)
+    X_train, X_test = apply_min_max_transformation(split.X_train, split.X_test)
 
     # Train and evaluate the model
     metrics = {
@@ -115,16 +91,24 @@ def full_pipeline_task(
         "LogisticRegression_L1": None,
     }
     metrics_1 = train_and_evaluate_model(
-        X_train, y_train, X_test, y_test, model_type="DecisionTreeClassifier"
+        X_train,
+        split.y_train,
+        X_test,
+        split.y_test,
+        model_type="DecisionTreeClassifier",
     )
     metrics_2 = train_and_evaluate_model(
-        X_train, y_train, X_test, y_test, model_type="GradientBoostingClassifier"
+        X_train,
+        split.y_train,
+        X_test,
+        split.y_test,
+        model_type="GradientBoostingClassifier",
     )
     metrics_3 = train_and_evaluate_model(
-        X_train, y_train, X_test, y_test, model_type="LogisticRegression_L2"
+        X_train, split.y_train, X_test, split.y_test, model_type="LogisticRegression_L2"
     )
     metrics_4 = train_and_evaluate_model(
-        X_train, y_train, X_test, y_test, model_type="LogisticRegression_L1"
+        X_train, split.y_train, X_test, split.y_test, model_type="LogisticRegression_L1"
     )
     metrics["DecisionTreeClassifier"] = metrics_1
     metrics["GradientBoostingClassifier"] = metrics_2
