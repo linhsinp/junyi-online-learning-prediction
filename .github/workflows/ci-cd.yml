@@ -20,11 +20,20 @@ jobs:
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+
       - name: Sync project dependencies
         run: uv sync --all-groups
 
       - name: Run lint checks
         run: make lint
+
+      - name: Validate Helm chart
+        run: make helm-lint
+
+      - name: Render Helm workloads
+        run: make helm-template
 
       - name: Run automated tests
         run: make test
