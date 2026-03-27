@@ -8,7 +8,6 @@ import pytest
 
 from junyi_predictor.pipeline.feature_engineering import FeatureStageOutput
 from junyi_predictor.pipeline.preprocessing import PreprocessStageOutput
-from junyi_predictor.pipeline.training import TrainingSplit
 from orchestration import flyte_app
 
 
@@ -38,11 +37,9 @@ def test_train_all_models_covers_all_configured_model_types(
 
 @pytest.mark.anyio
 async def test_preprocess_from_database_returns_summary(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, mock_stage_frames
 ):
-    df_log = pd.DataFrame({"value": [1, 2, 3]})
-    df_user = pd.DataFrame({"value": [1, 2]})
-    df_content = pd.DataFrame({"value": [1]})
+    df_log, df_user, df_content = mock_stage_frames
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://example")
     monkeypatch.setattr(flyte_app, "create_engine", lambda url: f"engine:{url}")
@@ -74,16 +71,10 @@ async def test_preprocess_from_database_returns_summary(
 
 
 @pytest.mark.anyio
-async def test_full_pipeline_uses_stage_contracts(monkeypatch: pytest.MonkeyPatch):
-    df_log = pd.DataFrame({"value": [1, 2, 3]})
-    df_user = pd.DataFrame({"value": [1, 2]})
-    df_content = pd.DataFrame({"value": [1]})
-    split = TrainingSplit(
-        X_train=np.array([[0.0], [1.0]]),
-        y_train=np.array([0, 1]),
-        X_test=np.array([[0.5]]),
-        y_test=np.array([1]),
-    )
+async def test_full_pipeline_uses_stage_contracts(
+    monkeypatch: pytest.MonkeyPatch, mock_stage_frames, mocked_stage_split
+):
+    df_log, df_user, df_content = mock_stage_frames
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://example")
     monkeypatch.setattr(flyte_app, "create_engine", lambda url: f"engine:{url}")
@@ -108,7 +99,9 @@ async def test_full_pipeline_uses_stage_contracts(monkeypatch: pytest.MonkeyPatc
             level4_proficiency=np.ones((3, 1)),
         ),
     )
-    monkeypatch.setattr(flyte_app, "split_training_data", lambda **kwargs: split)
+    monkeypatch.setattr(
+        flyte_app, "split_training_data", lambda **kwargs: mocked_stage_split
+    )
     monkeypatch.setattr(
         flyte_app,
         "apply_min_max_transformation",
@@ -129,14 +122,8 @@ async def test_full_pipeline_uses_stage_contracts(monkeypatch: pytest.MonkeyPatc
 
 @pytest.mark.anyio
 async def test_train_from_gcs_downloads_features_and_cleans_up(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
+    monkeypatch: pytest.MonkeyPatch, tmp_path, mocked_stage_split
 ):
-    split = TrainingSplit(
-        X_train=np.array([[0.0], [1.0]]),
-        y_train=np.array([0, 1]),
-        X_test=np.array([[0.5]]),
-        y_test=np.array([1]),
-    )
     local_dir = tmp_path / "gcs"
     removed: list[str] = []
 
@@ -151,7 +138,9 @@ async def test_train_from_gcs_downloads_features_and_cleans_up(
         "load_feature_matrices",
         lambda *args: (np.ones((2, 1)), np.ones((2, 1))),
     )
-    monkeypatch.setattr(flyte_app, "split_training_data", lambda **kwargs: split)
+    monkeypatch.setattr(
+        flyte_app, "split_training_data", lambda **kwargs: mocked_stage_split
+    )
     monkeypatch.setattr(
         flyte_app,
         "apply_min_max_transformation",

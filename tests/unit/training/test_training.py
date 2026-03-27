@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 from junyi_predictor.pipeline.training import (
     apply_min_max_transformation,
@@ -8,27 +7,13 @@ from junyi_predictor.pipeline.training import (
 )
 
 
-def test_split_training_data_builds_deterministic_stage_contract():
-    df_log = pd.DataFrame(
-        {
-            "user_grade": [5, 6, 5, 6, 7],
-            "female": [1, 0, 1, 0, 0],
-            "male": [0, 1, 0, 1, 0],
-            "unspecified": [0, 0, 0, 0, 1],
-            "v_upid_acc": [0.2, 0.4, 0.6, 0.8, 1.0],
-            "level": [1, 2, 3, 4, 5],
-            "problem_number": [1, 2, 3, 4, 5],
-            "exercise_problem_repeat_session": [0, 1, 0, 1, 0],
-            "is_correct": [True, False, True, False, True],
-        }
-    )
-    concept = np.arange(10, dtype=float).reshape(5, 2)
-    level4 = np.arange(5, dtype=float).reshape(5, 1)
-
+def test_split_training_data_builds_deterministic_stage_contract(
+    training_log_df, training_concept_matrix, training_level4_matrix
+):
     split = split_training_data(
-        df_log=df_log,
-        m_concept_proficiency=concept,
-        m_proficiency_level4=level4,
+        df_log=training_log_df,
+        m_concept_proficiency=training_concept_matrix,
+        m_proficiency_level4=training_level4_matrix,
         num_samples=5,
     )
 
@@ -38,12 +23,10 @@ def test_split_training_data_builds_deterministic_stage_contract():
     assert split.y_test.shape == (1,)
 
 
-def test_training_helpers_scale_features_and_train_models():
-    X_train = np.array([[0.0, 0.0], [1.0, 1.0], [0.0, 1.0], [1.0, 0.0]])
-    X_test = np.array([[0.0, 0.0], [1.0, 1.0]])
-    y_train = np.array([0, 1, 0, 1], dtype=bool)
-    y_test = np.array([0, 1], dtype=bool)
-
+def test_training_helpers_scale_features_and_train_models(
+    simple_binary_training_arrays,
+):
+    X_train, X_test, y_train, y_test = simple_binary_training_arrays
     X_train_scaled, X_test_scaled = apply_min_max_transformation(X_train, X_test)
     metrics = train_and_evaluate_model(
         X_train=X_train_scaled,
