@@ -4,11 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from kaggle.api.kaggle_api_extended import KaggleApi
-
 from junyi_predictor.paths import RAW_DATA_DIR
 
 KAGGLE_DATASET = "junyiacademy/learning-activity-public-dataset-by-junyi-academy"
+
+
+def _get_kaggle_api_class():
+    from kaggle.api.kaggle_api_extended import KaggleApi
+
+    return KaggleApi
 
 
 def download_kaggle_data(output_dir: str | Path = RAW_DATA_DIR) -> None:
@@ -16,6 +20,6 @@ def download_kaggle_data(output_dir: str | Path = RAW_DATA_DIR) -> None:
     destination = Path(output_dir)
     destination.mkdir(parents=True, exist_ok=True)
 
-    api = KaggleApi()
+    api = _get_kaggle_api_class()()
     api.authenticate()
     api.dataset_download_files(KAGGLE_DATASET, path=str(destination), unzip=True)
