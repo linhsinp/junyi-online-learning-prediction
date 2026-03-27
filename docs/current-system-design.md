@@ -9,8 +9,9 @@ flowchart TD
     end
 
     subgraph Orchestration[Orchestration Layer]
-        WF[flyte/full_pipeline_wf.py]
-        INGEST[flyte/tasks/ingest.py]
+        WF[orchestration/flyte_app.py full_pipeline]
+        PRETASK[orchestration/flyte_app.py preprocess_from_database]
+        TRAINTASK[orchestration/flyte_app.py train_from_gcs]
     end
 
     subgraph Core[Modular Execution Code]
@@ -43,20 +44,20 @@ flowchart TD
     TR --> METRICS
 
     GCS --> STORE
-    STORE --> INGEST
-    INGEST --> LOCAL
+    STORE --> TRAINTASK
+    TRAINTASK --> METRICS
 
     CSV --> PRE
     FE --> LOCAL
     TR --> MODEL
 
     PRE -. reused by .-> data/create_db.py
-    STORE -. reused by .-> INGEST
+    PRETASK --> PRE
 ```
 
 ## Notes
 
-- `flyte/full_pipeline_wf.py` is the main end-to-end execution path today.
+- `orchestration/flyte_app.py` is the main Flyte 2 execution entrypoint today.
 - The core runtime is now stage-based: preprocessing, feature engineering, then training.
 - Each stage exposes an explicit contract to reduce cross-stage coupling.
 - GCS access is isolated in `junyi_predictor.storage.gcs`.

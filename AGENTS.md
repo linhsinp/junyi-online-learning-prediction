@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Core execution code lives in `junyi_predictor/`. Stage logic is split across `junyi_predictor/pipeline/preprocessing.py`, `junyi_predictor/pipeline/feature_engineering.py`, and `junyi_predictor/pipeline/training.py`, with storage adapters in `junyi_predictor/storage/`. Flyte orchestration is split between `flyte/tasks/`, `flyte/workflows/`, and top-level workflow entrypoints such as `flyte/full_pipeline_wf.py`. Data utilities live in `data/`, infrastructure code is in `terraform/`, and container builds are under `docker/`. Tests are in `tests/`, exploratory work in `notebooks/`, and generated artifacts are typically written to `model/` and `data/{raw,experiment,feature_store,output}`.
+Core execution code lives in `junyi_predictor/`. Stage logic is split across `junyi_predictor/pipeline/preprocessing.py`, `junyi_predictor/pipeline/feature_engineering.py`, and `junyi_predictor/pipeline/training.py`, with storage adapters in `junyi_predictor/storage/`. Flyte 2 entrypoints live in `orchestration/flyte_app.py`. Data utilities live in `data/`, infrastructure code is in `terraform/`, and container builds are under `docker/`. Tests are in `tests/`, exploratory work in `notebooks/`, and generated artifacts are typically written to `model/` and `data/{raw,experiment,feature_store,output}`.
 
 ## Build, Test, and Development Commands
 Use Python 3.10 to 3.12. Preferred setup is `uv`:
@@ -11,6 +11,7 @@ Use Python 3.10 to 3.12. Preferred setup is `uv`:
 - `uv run ruff check .`: lint Python files.
 - `uv run ruff format .`: apply formatting.
 - `uv run isort .`: normalize import order.
+- `make flyte-local`: run the Flyte 2 full pipeline entrypoint locally with `flyte run --local`.
 - `pre-commit run --all-files`: run the same checks used before commits.
 
 If `uv` is not installed, review `setup.sh`.
