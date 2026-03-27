@@ -41,40 +41,8 @@ def test_train_and_evaluate_model_rejects_unknown_model_type():
         )
 
 
-def test_train_benchmark_model_returns_model_and_score():
-    rows = 10
-    df_log = pd.DataFrame(
-        {
-            "uuid": [f"u{i}" for i in range(rows)],
-            "user_grade": pd.Series([5, 6, 5, 6, 5, 6, 5, 6, 5, 6], dtype="int8"),
-            "ucid": [f"c{i}" for i in range(rows)],
-            "is_correct": [0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
-            "level": [1, 2, 1, 2, 1, 2, 1, 2, 1, 2],
-        }
-    )
-    df_user = pd.DataFrame(
-        {
-            "uuid": [f"u{i}" for i in range(rows)],
-            "user_grade": pd.Series([5, 6, 5, 6, 5, 6, 5, 6, 5, 6], dtype="int8"),
-            "gender": pd.Series(
-                ["female", "male"] * 5,
-                dtype="category",
-            ),
-            "has_teacher_cnt": [1] * rows,
-            "is_self_coach": [False, True] * 5,
-            "has_student_cnt": [0] * rows,
-            "belongs_to_class_cnt": [1] * rows,
-            "has_class_cnt": [1] * rows,
-        }
-    )
-    df_content = pd.DataFrame(
-        {
-            "ucid": [f"c{i}" for i in range(rows)],
-            "difficulty": pd.Series(["easy", "hard"] * 5, dtype="category"),
-            "learning_stage": pd.Series(["elementary", "junior"] * 5, dtype="category"),
-        }
-    )
-
+def test_train_benchmark_model_returns_model_and_score(benchmark_frames):
+    df_log, df_user, df_content = benchmark_frames
     model, score = train_benchmark_model(
         df_log=df_log, df_user=df_user, df_content=df_content
     )
