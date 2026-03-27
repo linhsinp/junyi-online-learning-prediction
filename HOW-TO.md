@@ -8,7 +8,7 @@ This repository trains and evaluates student-performance prediction models for t
 - `junyi_predictor.pipeline.feature_engineering`
 - `junyi_predictor.pipeline.training`
 
-Flyte orchestrates those stages through workflows in `flyte/`.
+Flyte 2 orchestrates those stages through tasks in `orchestration/flyte_app.py`, using the `flyte` CLI for local execution.
 
 ## Setup
 
@@ -52,9 +52,10 @@ make flyte-train-local
 
 ## Main Entry Points
 
-- `flyte/full_pipeline_wf.py`: end-to-end database-backed workflow.
-- `flyte/workflows/preprocess.py`: preprocessing-only workflow.
-- `flyte/workflows/train_model.py`: training workflow that loads feature artifacts from GCS.
+- `orchestration/flyte_app.py`: Flyte 2 task entrypoints for preprocessing, full pipeline execution, and GCS-backed training.
+- `junyi_predictor/pipeline/preprocessing.py`: preprocessing stage contract and transformations.
+- `junyi_predictor/pipeline/feature_engineering.py`: feature engineering stage contract and transformations.
+- `junyi_predictor/pipeline/training.py`: training split and model execution helpers.
 - `data/create_db.py`: utility for creating and loading PostgreSQL tables from raw CSV files.
 
 ## Outputs
@@ -68,4 +69,4 @@ make flyte-train-local
 - If Flyte cannot connect to Postgres, fix `DATABASE_URL` first.
 - If `flyte-train-local` fails, verify GCS credentials and bucket contents.
 - If imports fail, run commands from the repository root.
-- `pyflyte run` expects workflow inputs as `--start_date`, `--end_date`, and `--num_samples` rather than kebab-case flags.
+- This repo targets the Flyte 2 `flyte` CLI, not `pyflyte`, and local runs use `flyte run --local ...`.

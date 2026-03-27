@@ -5,9 +5,9 @@ Junyi Online Learning Performance Prediction
 
 This project aims to build a prototype tool that is applicable to a Taiwanese online learning platform. A best-performing ML model among other candidates makes batch inference on incoming online learning platform data. It predicts students' online learning performance based on their problem-solving history, which sheds light on ways to help students improve their academic performance.
 
-It demonstrates how to deploy ML models with Flyte (kubernetes-native container management tool) to orchestrate data and model workflows. Cloud infrastructure is managed by Terraform (example cloud provider: Google Cloud Platform). 
+It demonstrates how to orchestrate data and model execution with Flyte 2 while keeping pipeline logic modular and testable in plain Python. Cloud infrastructure is managed by Terraform (example cloud provider: Google Cloud Platform). 
 
-The end-to-end ML pipeline includes (with workflows in place and under construction):
+The end-to-end ML pipeline includes:
 
 1. Data ingestion - raw files saved to Google Cloud Storage
 2. Data preprocessing - processed data in self-hosted postgreSQL database
@@ -18,5 +18,4 @@ The end-to-end ML pipeline includes (with workflows in place and under construct
 
 
 Open source dataset on Kaggle: [Junyi Academy Online Learning Activity Dataset](https://www.kaggle.com/datasets/junyiacademy/learning-activity-public-dataset-by-junyi-academy/)
-
 
