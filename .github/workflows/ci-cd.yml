@@ -1,11 +1,7 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
-      - 2-repo-refactor
   workflow_dispatch:
 
 jobs:
