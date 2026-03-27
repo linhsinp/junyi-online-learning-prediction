@@ -20,7 +20,7 @@ test:
 	$(UV) run pytest
 
 lint:
-	$(UV) run ruff check junyi_predictor orchestration data tests
+	$(UV) run ruff check junyi_predictor orchestration tests
 
 helm-lint:
 	helm lint ./infra/helm/junyi-predictor

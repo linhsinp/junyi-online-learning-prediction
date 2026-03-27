@@ -6,13 +6,7 @@ __pycache__/
 .coverage
 
 demo/
-data/raw/
-data/output/
-data/experiment/
-data/test/
-data/feature_store/
-data/demo/
-model/
+artifacts/
 
 terraform-provider-google_v6.38.0_x5
 infra/terraform/.terraform/

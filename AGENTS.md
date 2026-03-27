@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Core execution code lives in `junyi_predictor/`. Stage logic is split across `junyi_predictor/pipeline/preprocessing.py`, `junyi_predictor/pipeline/feature_engineering.py`, and `junyi_predictor/pipeline/training.py`, with storage adapters in `junyi_predictor/storage/`. Flyte 2 entrypoints live in `orchestration/flyte_app.py`. Data utilities live in `data/`. Keep infrastructure concerns separated under `infra/`: `infra/terraform/` is for cloud resource provisioning, `infra/helm/junyi-predictor/` is for Kubernetes workload deployment, and `infra/docker/` contains container build definitions. Tests are in `tests/`, exploratory work in `notebooks/`, and generated artifacts are typically written to `model/` and `data/{raw,experiment,feature_store,output}`.
+Core execution code lives in `junyi_predictor/`. Stage logic is split across `junyi_predictor/pipeline/preprocessing.py`, `junyi_predictor/pipeline/feature_engineering.py`, and `junyi_predictor/pipeline/training.py`, with storage adapters in `junyi_predictor/storage/`. Bootstrap utilities live in `junyi_predictor/bootstrap/`, and Flyte 2 entrypoints live in `orchestration/flyte_app.py`. Keep infrastructure concerns separated under `infra/`: `infra/terraform/` is for cloud resource provisioning, `infra/helm/junyi-predictor/` is for Kubernetes workload deployment, and `infra/docker/` contains container build definitions. Tests are in `tests/`, exploratory work in `notebooks/`, and generated artifacts live under the gitignored `artifacts/{data,model}/` tree.
 
 ## Build, Test, and Development Commands
 Use `uv` as the only supported environment manager for this repository:

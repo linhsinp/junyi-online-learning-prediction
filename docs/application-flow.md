@@ -5,7 +5,7 @@ flowchart TD
     subgraph Sources[Data Sources]
         PG[(PostgreSQL)]
         GCS[(Google Cloud Storage)]
-        CSV[data/raw/*.csv]
+        CSV[artifacts/data/raw/*.csv]
     end
 
     subgraph Orchestration[Flyte 2 Tasks]
@@ -29,8 +29,8 @@ flowchart TD
 
     subgraph Outputs[Outputs]
         METRICS[Model metrics]
-        LOCAL[data/output, data/experiment, data/feature_store]
-        MODEL[model/]
+        LOCAL[artifacts/data/output, artifacts/data/experiment, artifacts/data/feature_store]
+        MODEL[artifacts/model/]
     end
 
     PG --> PRETASK
