@@ -4,7 +4,7 @@ START_DATE ?= 2019-06-01T00:00:00
 END_DATE ?= 2019-06-10T00:00:00
 NUM_SAMPLES ?= 1000
 
-.PHONY: help test lint helm-lint flyte-local flyte-preprocess-local flyte-train-local
+.PHONY: help test lint helm-lint helm-template flyte-local flyte-preprocess-local flyte-train-local
 
 help:
 	@echo "Available targets:"
@@ -12,6 +12,7 @@ help:
 	@echo "  make test"
 	@echo "  make lint"
 	@echo "  make helm-lint"
+	@echo "  make helm-template"
 	@echo "  make flyte-local START_DATE=... END_DATE=... NUM_SAMPLES=..."
 	@echo "  make flyte-preprocess-local START_DATE=... END_DATE=..."
 	@echo "  make flyte-train-local"
@@ -24,6 +25,14 @@ lint:
 
 helm-lint:
 	helm lint ./infra/helm/junyi-predictor
+
+helm-template:
+	helm template junyi ./infra/helm/junyi-predictor \
+		-f ./infra/helm/junyi-predictor/values-full-pipeline.yaml >/dev/null
+	helm template junyi ./infra/helm/junyi-predictor \
+		-f ./infra/helm/junyi-predictor/values-preprocess.yaml >/dev/null
+	helm template junyi ./infra/helm/junyi-predictor \
+		-f ./infra/helm/junyi-predictor/values-train-from-gcs.yaml >/dev/null
 
 flyte-local:
 	@set -a; [ -f .env ] && . ./.env; set +a; \
