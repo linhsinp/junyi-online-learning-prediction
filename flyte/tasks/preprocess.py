@@ -7,7 +7,10 @@ from flytekit import StructuredDataset, task
 from flytekit.types.file import FlyteFile
 from sqlalchemy import create_engine
 
-from scripts.preprocess import load_df_from_dbt, preprocess_log
+from junyi_predictor.pipeline.preprocessing import (
+    load_data_from_database,
+    preprocess_stage,
+)
 
 load_dotenv()
 
@@ -39,17 +42,16 @@ def load_from_dbt_and_preprocess_data(
     )
     db_url = os.environ["DATABASE_URL"]
     sqlmodel_engine = create_engine(db_url)
-    df_log, df_user, df_content = load_df_from_dbt(
+    df_log, df_user, df_content = load_data_from_database(
         start_date, end_date, sqlmodel_engine
     )
-    print(
-        "Preprocessing log df by merging with user data, sorting, and encoding categorical variables."
+    stage_output = preprocess_stage(
+        df_log=df_log, df_user=df_user, df_content=df_content
     )
-    df_log = preprocess_log(df_log, df_user)
     return (
-        StructuredDataset(df_log),
-        StructuredDataset(df_user),
-        StructuredDataset(df_content),
+        StructuredDataset(stage_output.log),
+        StructuredDataset(stage_output.user),
+        StructuredDataset(stage_output.content),
     )
 
 

@@ -1,10 +1,10 @@
 import pandas as pd
 from flytekit import StructuredDataset, task
 
-from scripts.engineer_feature import (
-    create_concept_proficiency,
-    create_level4_proficiency_matrix,
-    create_upid_acc,
+from junyi_predictor.pipeline.feature_engineering import (
+    build_feature_stage,
+    create_concept_proficiency_matrix,
+    create_upid_accuracy_features,
 )
 
 custom_image = "linhsinp/junyi-predictor-image:latest"
@@ -25,7 +25,7 @@ def create_upid_acc_task(df_log: StructuredDataset) -> StructuredDataset:
     """
     print("Starting UPID accuracy feature engineering...")
     df_log = df_log.open(pd.DataFrame).all()
-    df_log = create_upid_acc(df_log)
+    df_log = create_upid_accuracy_features(df_log)
     print("UPID accuracy feature engineering completed.")
     return StructuredDataset(df_log)
 
@@ -50,7 +50,7 @@ def create_concept_proficiency_task(
     print("Starting concept proficiency feature engineering...")
     list_concept_id = df_content.ucid.to_numpy()
     dict_concept_id = {id: order for order, id in enumerate(list_concept_id)}
-    m_concept_proficiency = create_concept_proficiency(
+    m_concept_proficiency = create_concept_proficiency_matrix(
         df_log, list_concept_id, dict_concept_id
     )
     print("Concept proficiency feature engineering completed.")
@@ -73,21 +73,11 @@ def create_level4_proficiency_task(
     Returns:
         StructuredDataset: Level-4 proficiency matrix.
     """
+    df_log = df_log.open(pd.DataFrame).all()
+    df_user = df_user.open(pd.DataFrame).all()
+    df_content = df_content.open(pd.DataFrame).all()
     print("Starting level-4 proficiency feature engineering...")
-    list_concept_id = df_content.ucid.to_numpy()
-    dict_concept_id = {id: order for order, id in enumerate(list_concept_id)}
-    list_level4_id = df_content.level4_id.unique().to_numpy()
-    dict_level4_id = {id: order for order, id in enumerate(list_level4_id)}
-    list_user_id = df_user["uuid"].unique()
-    dict_user_id = {id: order for order, id in enumerate(list_user_id)}
-    m_proficiency = create_level4_proficiency_matrix(
-        df_log,
-        df_content,
-        list_concept_id,
-        dict_concept_id,
-        list_level4_id,
-        dict_level4_id,
-        list_user_id,
-        dict_user_id,
+    stage_output = build_feature_stage(
+        df_log=df_log, df_user=df_user, df_content=df_content
     )
-    return StructuredDataset(m_proficiency)
+    return StructuredDataset(stage_output.level4_proficiency)

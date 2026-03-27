@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from scripts.gcs_utils import download_data_to_tmp
+from junyi_predictor.storage.gcs import download_data_to_tmp
 
 
 @pytest.fixture
@@ -21,8 +21,10 @@ def mock_gcs(monkeypatch):
     mock_client.bucket.return_value = mock_bucket
 
     # Patch the GCS client in the module
-    monkeypatch.setattr("scripts.gcs_utils.storage.Client", lambda: mock_client)
-    monkeypatch.setattr("scripts.gcs_utils.BUCKET_NAME", "fake-bucket")
+    monkeypatch.setattr(
+        "junyi_predictor.storage.gcs.storage.Client", lambda: mock_client
+    )
+    monkeypatch.setattr("junyi_predictor.storage.gcs.BUCKET_NAME", "fake-bucket")
 
     return mock_blob
 

@@ -9,7 +9,12 @@ from pydantic import ValidationError
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, create_engine
 
-from scripts.preprocess import FILE_CONTENT, FILE_LOG_FULL, FILE_USER, load_data_into_df
+from junyi_predictor.pipeline.preprocessing import (
+    FILE_CONTENT,
+    FILE_LOG_FULL,
+    FILE_USER,
+    load_raw_dataframes,
+)
 
 # Define DB connection string
 ENGINE_URL = "postgresql://postgres:postgres@localhost:30001/postgres"
@@ -240,7 +245,7 @@ if __name__ == "__main__":
     sqlmodel_engine = create_engine(ENGINE_URL)
 
     # Load raw csv files
-    df_log, df_user, df_content = load_data_into_df(
+    df_log, df_user, df_content = load_raw_dataframes(
         FILE_LOG_FULL, FILE_USER, FILE_CONTENT
     )
 
