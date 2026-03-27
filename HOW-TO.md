@@ -12,7 +12,9 @@ Flyte 2 orchestrates those stages through tasks in `orchestration/flyte_app.py`,
 
 ## Setup
 
-1. Install dependencies.
+This repository is expected to run only from the `uv`-managed virtual environment.
+
+1. Sync the environment.
 
 ```bash
 uv sync --all-groups
@@ -70,3 +72,4 @@ make flyte-train-local
 - If `flyte-train-local` fails, verify GCS credentials and bucket contents.
 - If imports fail, run commands from the repository root.
 - This repo targets the Flyte 2 `flyte` CLI, not `pyflyte`, and local runs use `flyte run --local ...`.
+- Do not use `pyenv`, `python -m venv`, or ad hoc `pip install`; use `uv sync` and `uv run` only.

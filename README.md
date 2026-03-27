@@ -7,6 +7,8 @@ This project aims to build a prototype tool that is applicable to a Taiwanese on
 
 It demonstrates how to orchestrate data and model execution with Flyte 2 while keeping pipeline logic modular and testable in plain Python. Cloud infrastructure is managed by Terraform (example cloud provider: Google Cloud Platform). 
 
+Local development is expected to use the `uv`-managed virtual environment only.
+
 The end-to-end ML pipeline includes:
 
 1. Data ingestion - raw files saved to Google Cloud Storage
@@ -18,4 +20,3 @@ The end-to-end ML pipeline includes:
 
 
 Open source dataset on Kaggle: [Junyi Academy Online Learning Activity Dataset](https://www.kaggle.com/datasets/junyiacademy/learning-activity-public-dataset-by-junyi-academy/)
-
