@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -84,9 +84,11 @@ def load_data_for_training(
     curated_log_root: Path = CURATED_LOG_DIR,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """Load date-filtered event history from Parquet and dimensions from PostgreSQL."""
+    start = _as_naive_utc(start_date)
+    end = _as_naive_utc(end_date)
     partitions: list[Path] = []
-    partition_month = datetime(start_date.year, start_date.month, 1)
-    while partition_month < end_date:
+    partition_month = datetime(start.year, start.month, 1)
+    while partition_month < end:
         path = (
             curated_log_root
             / f"year={partition_month.year}"
@@ -107,7 +109,7 @@ def load_data_for_training(
         )
     df_log = pd.concat(frames, ignore_index=True)
     df_log = df_log.loc[
-        (df_log["timestamp_TW"] >= start_date) & (df_log["timestamp_TW"] < end_date)
+        (df_log["timestamp_TW"] >= start) & (df_log["timestamp_TW"] < end)
     ].copy()
     selected_uuid = df_log["uuid"].unique().tolist()
     df_user = pd.read_sql(
@@ -117,6 +119,13 @@ def load_data_for_training(
     )
     df_content = pd.read_sql("SELECT * FROM info_content;", sqlmodel_engine)
     return df_log, df_user, df_content
+
+
+def _as_naive_utc(value: datetime) -> datetime:
+    """Normalize Flyte's UTC-aware inputs to Parquet's naive UTC timestamps."""
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def preprocess_log_frame(df_log: pd.DataFrame, df_user: pd.DataFrame) -> pd.DataFrame:
@@ -138,8 +147,8 @@ def preprocess_log_frame(df_log: pd.DataFrame, df_user: pd.DataFrame) -> pd.Data
 
     df_log["level"] = (
         df_log["level"]
-        + df_log["is_downgrade"].fillna(0).astype(int)
-        - df_log["is_upgrade"].fillna(0).astype(int)
+        + df_log["is_downgrade"].fillna(False).astype(int)
+        - df_log["is_upgrade"].fillna(False).astype(int)
     ).astype("int8")
 
     return df_log.drop(columns=VARS_REDUNDANT)

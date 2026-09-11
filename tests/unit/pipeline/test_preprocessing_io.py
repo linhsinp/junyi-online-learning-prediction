@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 import pytest
@@ -106,3 +106,34 @@ def test_load_data_for_training_reads_only_requested_month_partitions(
     assert list(df_log["uuid"]) == ["u1"]
     assert list(df_user["uuid"]) == ["u1"]
     assert list(df_content["ucid"]) == ["c1"]
+
+
+def test_load_data_for_training_accepts_utc_aware_dates(monkeypatch, tmp_path):
+    curated_root = tmp_path / "curated"
+    june = curated_root / "year=2024" / "month=06"
+    june.mkdir(parents=True)
+    monkeypatch.setattr(
+        pd,
+        "read_parquet",
+        lambda _path: pd.DataFrame(
+            {"timestamp_TW": [pd.Timestamp("2024-06-15")], "uuid": ["u1"]}
+        ),
+    )
+    monkeypatch.setattr(
+        pd,
+        "read_sql",
+        lambda query, *_args, **_kwargs: (
+            pd.DataFrame({"uuid": ["u1"]})
+            if "user_profile" in query
+            else pd.DataFrame({"ucid": ["c1"]})
+        ),
+    )
+
+    df_log, _, _ = load_data_for_training(
+        datetime(2024, 6, 10, tzinfo=timezone.utc),
+        datetime(2024, 6, 20, tzinfo=timezone.utc),
+        "engine",
+        curated_root,
+    )
+
+    assert list(df_log["uuid"]) == ["u1"]
