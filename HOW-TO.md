@@ -57,6 +57,12 @@ DATABASE_URL=postgresql://junyi:junyi-local-only@localhost:30001/junyi \
 make flyte-training-local START_DATE=2019-06-01T00:00:00 END_DATE=2019-06-10T00:00:00
 ```
 
+For an interactive local task-progress display, use the TUI target instead:
+
+```bash
+make flyte-training-local-tui START_DATE=2019-06-01T00:00:00 END_DATE=2019-06-10T00:00:00
+```
+
 ## Remote GKE demonstration
 
 Use Terraform and Helm for different responsibilities:
@@ -96,6 +102,7 @@ Remote tasks use Workload Identity and `ARTIFACT_BACKEND=gcs`; do not mount serv
 ## Outputs
 
 - Curated training events: `artifacts/data/curated/log_problem/year=*/month=*/`
+- Preprocessed task handoff: `artifacts/runs/runs/<run-id>/preprocessed/`
 - Run-scoped artifacts: `artifacts/runs/runs/<run-id>/`
 - Registered models: `artifacts/runs/models/<model-version>/`
 - Architecture reference: `docs/current-system-design.md`

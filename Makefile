@@ -7,7 +7,7 @@ START_DATE ?= 2019-06-01T00:00:00
 END_DATE ?= 2019-06-10T00:00:00
 NUM_SAMPLES ?= 1000
 
-.PHONY: help test lint helm-lint helm-template flyte-training-local postgres-local kind-create download-data materialize-parquet reset-local seed-local
+.PHONY: help test lint helm-lint helm-template flyte-training-local flyte-training-local-tui postgres-local kind-create download-data materialize-parquet reset-local seed-local
 
 help:
 	@echo "Available targets:"
@@ -23,6 +23,7 @@ help:
 	@echo "  make reset-local DATABASE_URL=..."
 	@echo "  make seed-local DATABASE_URL=..."
 	@echo "  make flyte-training-local START_DATE=... END_DATE=..."
+	@echo "  make flyte-training-local-tui START_DATE=... END_DATE=..."
 
 test:
 	$(UV) run pytest
@@ -61,4 +62,10 @@ flyte-training-local:
 	@set -a; [ -f .env ] && . ./.env; set +a; \
 	ARTIFACT_BACKEND=local ARTIFACT_ROOT=artifacts/runs \
 	PYTHONPATH=src $(UV) run flyte run --local src/junyi_predictor/workflows/training.py training_pipeline \
+		--start_date "$(START_DATE)" --end_date "$(END_DATE)"
+
+flyte-training-local-tui:
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	ARTIFACT_BACKEND=local ARTIFACT_ROOT=artifacts/runs \
+	PYTHONPATH=src $(UV) run flyte run --local --tui src/junyi_predictor/workflows/training.py training_pipeline \
 		--start_date "$(START_DATE)" --end_date "$(END_DATE)"

@@ -41,8 +41,10 @@ flowchart LR
   relational feature data; it does not store the complete event history.
 - The artifact store holds run-scoped feature matrices, model bundles, scalers,
   metrics, manifests, and the approved-model pointer.
-- `PipelineRun`, `FeatureSnapshot`, and `ModelRegistration` provide durable
-  typed contracts between stages.
+- Frozen Pydantic `PipelineRun`, `PreprocessedSnapshot`, `FeatureSnapshot`, and
+  `ModelRegistration` models provide durable typed contracts between stages.
+- Flyte task boundaries exchange JSON-compatible model dumps; each receiving
+  task validates its payload before loading run-scoped artifacts.
 - Model bundles are immutable under `models/<run-id>/`; `models/approved.json`
   points to the selected model.
 - Training uses chronological partitions and fits transformations only on
@@ -83,6 +85,11 @@ Split images only after package or hardware requirements differ.
 Flyte local mode validates composition and durable interfaces from the host. A
 separate kind image smoke test validates container-to-PostgreSQL networking.
 Remote per-task container execution is validated only in GKE.
+
+The local workflow has three task boundaries: preprocessing persists the
+preprocessed log and dimensions under `runs/<run-id>/preprocessed/`; feature
+engineering consumes that snapshot and writes `runs/<run-id>/features/`; training
+consumes the feature snapshot and registers the model.
 
 ### 4. Ephemeral cloud demonstration
 

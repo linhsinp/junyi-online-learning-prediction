@@ -11,7 +11,11 @@ import flyte
 import numpy as np
 from sqlalchemy import create_engine
 
-from junyi_predictor.contracts import FeatureSnapshot
+from junyi_predictor.contracts import (
+    FeatureSnapshot,
+    PipelineRun,
+    PreprocessedSnapshot,
+)
 from junyi_predictor.pipeline.constants import MODEL_TYPES
 from junyi_predictor.pipeline.feature_engineering import build_feature_stage
 from junyi_predictor.pipeline.preprocessing import (
@@ -60,45 +64,113 @@ def _feature_keys(run_id: str) -> tuple[str, str, str]:
     )
 
 
+def _preprocessed_keys(run_id: str) -> tuple[str, str, str]:
+    prefix = f"runs/{run_id}/preprocessed"
+    return (
+        f"{prefix}/log.parquet",
+        f"{prefix}/user.parquet",
+        f"{prefix}/content.parquet",
+    )
+
+
 @preprocess_env.task(retries=1)
-async def materialize_features(
-    start_date: datetime,
-    end_date: datetime,
-    run_id: str,
+async def materialize_preprocessed(
+    run_payload: dict,
 ) -> dict:
-    """Load, preprocess, and materialize a durable feature snapshot."""
+    """Load and persist a durable preprocessing result."""
+    run = PipelineRun.model_validate(run_payload)
     settings = Settings.from_environment()
     engine = create_engine(settings.database_url)
-    df_log, df_user, df_content = load_data_for_training(start_date, end_date, engine)
-    preprocessed = preprocess_stage(df_log, df_user, df_content)
-    featured = build_feature_stage(
-        preprocessed.log, preprocessed.user, preprocessed.content
+    df_log, df_user, df_content = load_data_for_training(
+        run.start_date, run.end_date, engine
     )
-    preprocessed.log.assign(pipeline_run_id=run_id).to_sql(
+    preprocessed = preprocess_stage(df_log, df_user, df_content)
+    preprocessed.log.assign(pipeline_run_id=run.run_id).to_sql(
         "processed_log", engine, if_exists="append", index=False
     )
-    featured.log.assign(pipeline_run_id=run_id).to_sql(
+    store = _store_from_settings()
+    log_key, user_key, content_key = _preprocessed_keys(run.run_id)
+    with tempfile.TemporaryDirectory(prefix="junyi-preprocessed-") as temp_dir:
+        root = Path(temp_dir)
+        log_path = root / "log.parquet"
+        user_path = root / "user.parquet"
+        content_path = root / "content.parquet"
+        preprocessed.log.to_parquet(log_path, index=False)
+        preprocessed.user.to_parquet(user_path, index=False)
+        preprocessed.content.to_parquet(content_path, index=False)
+        snapshot = PreprocessedSnapshot(
+            run_id=run.run_id,
+            log_uri=store.put_file(log_path, log_key),
+            user_uri=store.put_file(user_path, user_key),
+            content_uri=store.put_file(content_path, content_key),
+            row_count=len(preprocessed.log),
+        )
+    store.put_json(
+        snapshot.model_dump(mode="json"),
+        f"runs/{run.run_id}/preprocessed_snapshot.json",
+    )
+    return snapshot.model_dump(mode="json")
+
+
+def _load_preprocessed_files(
+    snapshot: PreprocessedSnapshot,
+) -> tuple[Path, Path, Path]:
+    settings = Settings.from_environment()
+    if settings.artifact_backend == "local":
+        return (
+            Path(snapshot.log_uri),
+            Path(snapshot.user_uri),
+            Path(snapshot.content_uri),
+        )
+    store = _store_from_settings()
+    root = Path(tempfile.mkdtemp(prefix="junyi-features-"))
+    log_key, user_key, content_key = _preprocessed_keys(snapshot.run_id)
+    return (
+        store.get_file(log_key, root / "log.parquet"),
+        store.get_file(user_key, root / "user.parquet"),
+        store.get_file(content_key, root / "content.parquet"),
+    )
+
+
+@feature_env.task(retries=1)
+async def materialize_feature_snapshot(preprocessed_payload: dict) -> dict:
+    """Build and persist features from a validated preprocessing result."""
+    snapshot = PreprocessedSnapshot.model_validate(preprocessed_payload)
+    log_path, user_path, content_path = _load_preprocessed_files(snapshot)
+    import pandas as pd
+
+    featured = build_feature_stage(
+        pd.read_parquet(log_path),
+        pd.read_parquet(user_path),
+        pd.read_parquet(content_path),
+    )
+    settings = Settings.from_environment()
+    engine = create_engine(settings.database_url)
+    featured.log.assign(pipeline_run_id=snapshot.run_id).to_sql(
         "feature_snapshot", engine, if_exists="append", index=False
     )
     store = _store_from_settings()
-    log_key, concept_key, level4_key = _feature_keys(run_id)
+    log_key, concept_key, level4_key = _feature_keys(snapshot.run_id)
     with tempfile.TemporaryDirectory(prefix="junyi-features-") as temp_dir:
         root = Path(temp_dir)
-        log_path = root / "log.parquet"
-        concept_path = root / "concept_proficiency.npy"
-        level4_path = root / "level4_proficiency.npy"
-        featured.log.to_parquet(log_path, index=False)
-        np.save(concept_path, featured.concept_proficiency)
-        np.save(level4_path, featured.level4_proficiency)
-        snapshot = FeatureSnapshot(
-            run_id=run_id,
-            log_uri=store.put_file(log_path, log_key),
-            concept_matrix_uri=store.put_file(concept_path, concept_key),
-            level4_matrix_uri=store.put_file(level4_path, level4_key),
+        log_file = root / "log.parquet"
+        concept_file = root / "concept_proficiency.npy"
+        level4_file = root / "level4_proficiency.npy"
+        featured.log.to_parquet(log_file, index=False)
+        np.save(concept_file, featured.concept_proficiency)
+        np.save(level4_file, featured.level4_proficiency)
+        feature_snapshot = FeatureSnapshot(
+            run_id=snapshot.run_id,
+            log_uri=store.put_file(log_file, log_key),
+            concept_matrix_uri=store.put_file(concept_file, concept_key),
+            level4_matrix_uri=store.put_file(level4_file, level4_key),
             row_count=len(featured.log),
         )
-    store.put_json(snapshot.to_dict(), f"runs/{run_id}/feature_snapshot.json")
-    return snapshot.to_dict()
+    store.put_json(
+        feature_snapshot.model_dump(mode="json"),
+        f"runs/{snapshot.run_id}/feature_snapshot.json",
+    )
+    return feature_snapshot.model_dump(mode="json")
 
 
 def _load_snapshot_files(snapshot: FeatureSnapshot) -> tuple[Path, Path, Path]:
@@ -122,7 +194,7 @@ def _load_snapshot_files(snapshot: FeatureSnapshot) -> tuple[Path, Path, Path]:
 @train_env.task(retries=1)
 async def train_register(snapshot_payload: dict) -> dict:
     """Evaluate candidates, register the winner, and update approved-model metadata."""
-    snapshot = FeatureSnapshot(**snapshot_payload)
+    snapshot = FeatureSnapshot.model_validate(snapshot_payload)
     log_path, concept_path, level4_path = _load_snapshot_files(snapshot)
     import pandas as pd
 
@@ -155,7 +227,7 @@ async def train_register(snapshot_payload: dict) -> dict:
         scaler=scaler,
         metrics=metrics,
     )
-    return registration.to_dict()
+    return registration.model_dump(mode="json")
 
 
 @pipeline_env.task(
@@ -176,7 +248,11 @@ async def training_pipeline(
     resolved_run_id = (
         run_id or datetime.utcnow().strftime("%Y%m%dT%H%M%S") + "-" + uuid4().hex[:8]
     )
-    snapshot = await materialize_features(
-        resolved_start_date, resolved_end_date, resolved_run_id
+    pipeline_run = PipelineRun(
+        run_id=resolved_run_id,
+        start_date=resolved_start_date,
+        end_date=resolved_end_date,
     )
-    return await train_register(snapshot)
+    preprocessed = await materialize_preprocessed(pipeline_run.model_dump(mode="json"))
+    feature_snapshot = await materialize_feature_snapshot(preprocessed)
+    return await train_register(feature_snapshot)
