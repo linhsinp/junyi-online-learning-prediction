@@ -28,5 +28,17 @@ Infrastructure is separated by concern under `infra/`:
 See [the implementation plan](docs/implementation-plan.md) for the local kind,
 Flyte, and ephemeral-GKE delivery path.
 
+For the local kind workflow, use `make kind-create`, `make postgres-local`,
+`make download-data`, `make materialize-parquet`, `make seed-local`, and
+`make flyte-training-local` from the repository root. The full event history is
+stored as date-partitioned Parquet under `artifacts/data/curated/`; PostgreSQL
+contains only relational dimensions and run outputs. The application source is
+under `src/`; the Make targets set the required source path for module-based
+commands.
+
+Use `make reset-local` before reseeding an existing local database. It drops
+the local source tables and their contents before they are recreated by
+`make seed-local`.
+
 
 Open source dataset on Kaggle: [Junyi Academy Online Learning Activity Dataset](https://www.kaggle.com/datasets/junyiacademy/learning-activity-public-dataset-by-junyi-academy/)

@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import math
-from datetime import date, datetime
+from datetime import date
 from enum import Enum
 from typing import Any
 
 import numpy as np
 import pandas as pd
 from pydantic import ValidationError
+from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, create_engine
 
-from junyi_predictor.paths import CONTENT_FILE, LOG_FILE, USER_FILE
-from junyi_predictor.pipeline.preprocessing import load_raw_dataframes
+from junyi_predictor.paths import CONTENT_FILE, USER_FILE
 
 DEFAULT_ENGINE_URL = "postgresql://postgres:postgres@localhost:30001/postgres"
 
@@ -72,41 +72,8 @@ class UserProfile(SQLModel, table=True):
     has_class_cnt: int
 
 
-class BoolObjectEnum(str, Enum):
-    true = "True"
-    false = "False"
-    none = "None"
-
-
-ENUM_MAP_LOG_PROBLEM = {
-    "is_downgrade": BoolObjectEnum,
-    "is_upgrade": BoolObjectEnum,
-}
-
-
-class LogProblem(SQLModel, table=True):
-    __tablename__ = "log_problem"
-    __table_args__ = {"extend_existing": True}
-
-    timestamp_TW: datetime | None = Field(primary_key=True)
-    uuid: str | None = Field(primary_key=True)
-    ucid: str | None = Field(foreign_key="info_content.ucid")
-    upid: str | None = Field(primary_key=True)
-    problem_number: int | None = Field(default=None)
-    exercise_problem_repeat_session: int | None = Field(default=None)
-    is_correct: bool | None = Field(default=None)
-    total_sec_taken: int | None = Field(default=None)
-    total_attempt_cnt: int | None = Field(default=None)
-    used_hint_cnt: int | None = Field(default=None)
-    is_hint_used: bool | None = Field(default=None)
-    is_downgrade: BoolObjectEnum | None = Field(default=None)
-    is_upgrade: BoolObjectEnum | None = Field(default=None)
-    level: int | None = Field(default=None)
-
-
 ENUM_MAPS = {
     "info_content": ENUM_MAP_CONTENT,
-    "log_problem": ENUM_MAP_LOG_PROBLEM,
 }
 
 
@@ -174,7 +141,7 @@ def chunked_upload_with_validation(
     model_class: type[SQLModel],
     engine: Engine,
     table_name: str,
-    chunk_size: int = 100_000,
+    chunk_size: int = 1_000,
     enum_maps: dict[str, dict[str, type[Enum]]] = ENUM_MAPS,
 ) -> None:
     """Validate and upload a large DataFrame in chunks."""
@@ -189,11 +156,30 @@ def chunked_upload_with_validation(
     print(f"Uploaded {total_chunks} chunk(s) to {table_name}.")
 
 
+def reset_database(engine_url: str = DEFAULT_ENGINE_URL) -> None:
+    """Drop local source tables so the database can be seeded from scratch."""
+    engine = create_engine(engine_url)
+    # Remove the legacy event table before dropping its referenced dimensions.
+    with engine.begin() as connection:
+        connection.execute(text("DROP TABLE IF EXISTS log_problem CASCADE"))
+    SQLModel.metadata.drop_all(engine)
+
+
 def seed_database_from_raw_files(engine_url: str = DEFAULT_ENGINE_URL) -> None:
     """Load raw local artifacts and seed the PostgreSQL tables used by the workflows."""
     engine = create_engine(engine_url)
-    df_log, df_user, df_content = load_raw_dataframes(
-        str(LOG_FILE), str(USER_FILE), str(CONTENT_FILE)
+    df_user = pd.read_csv(
+        USER_FILE,
+        dtype={"uuid": "category", "gender": "category", "user_grade": "int8"},
+    )
+    df_content = pd.read_csv(
+        CONTENT_FILE,
+        dtype={
+            "ucid": "category",
+            "level4_id": "category",
+            "difficulty": "category",
+            "learning_stage": "category",
+        },
     )
 
     create_table_from_dataframe(df_content, InfoContent, engine)
@@ -203,10 +189,3 @@ def seed_database_from_raw_files(engine_url: str = DEFAULT_ENGINE_URL) -> None:
         df_user["first_login_date_TW"]
     ).dt.date
     create_table_from_dataframe(df_user, UserProfile, engine)
-
-    chunked_upload_with_validation(
-        df_log,
-        model_class=LogProblem,
-        engine=engine,
-        table_name="log_problem",
-    )

@@ -40,10 +40,13 @@ make kind-create
 make postgres-local
 ```
 
-Download the Kaggle dataset into ignored local artifacts, then seed the database:
+Download the Kaggle dataset, convert the event history into partitioned Parquet,
+then seed only the small relational dimension tables in PostgreSQL:
 
 ```bash
-uv run python -m junyi_predictor.cli download-data
+make download-data
+make materialize-parquet
+make reset-local # required before reseeding; drops local source tables
 make seed-local
 ```
 
@@ -92,6 +95,7 @@ Remote tasks use Workload Identity and `ARTIFACT_BACKEND=gcs`; do not mount serv
 
 ## Outputs
 
+- Curated training events: `artifacts/data/curated/log_problem/year=*/month=*/`
 - Run-scoped artifacts: `artifacts/runs/runs/<run-id>/`
 - Registered models: `artifacts/runs/models/<model-version>/`
 - Architecture reference: `docs/current-system-design.md`
@@ -100,6 +104,7 @@ Remote tasks use Workload Identity and `ARTIFACT_BACKEND=gcs`; do not mount serv
 
 - If Flyte cannot connect to Postgres, fix `DATABASE_URL` first.
 - If `flyte-training-local` fails, verify the kind PostgreSQL release and its NodePort connection string.
-- If imports fail, run commands from the repository root.
+- Source code lives under `src/`; use the provided Make targets for operational
+  commands. If calling a module directly, prefix it with `PYTHONPATH=src`.
 - This repo targets the Flyte 2 `flyte` CLI, not `pyflyte`, and local runs use `flyte run --local ...`.
 - Do not use `pyenv`, `python -m venv`, or ad hoc `pip install`; use `uv sync` and `uv run` only.

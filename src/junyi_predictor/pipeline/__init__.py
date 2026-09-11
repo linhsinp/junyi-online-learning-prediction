@@ -9,7 +9,7 @@ from junyi_predictor.pipeline.feature_engineering import (
 )
 from junyi_predictor.pipeline.preprocessing import (
     PreprocessStageOutput,
-    load_data_from_database,
+    load_data_for_training,
     load_raw_dataframes,
     preprocess_log_frame,
     preprocess_stage,
@@ -39,7 +39,7 @@ __all__ = [
     "create_upid_accuracy_features",
     "fit_model",
     "fit_min_max_scaler",
-    "load_data_from_database",
+    "load_data_for_training",
     "load_feature_matrices",
     "load_parquet_dataframe",
     "load_raw_dataframes",

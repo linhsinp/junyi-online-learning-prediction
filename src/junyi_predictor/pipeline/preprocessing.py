@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 from sqlalchemy import Engine
 
 from junyi_predictor.paths import (
     CONTENT_FILE,
+    CURATED_LOG_DIR,
     EXPERIMENT_DATA_DIR,
     LOG_FILE,
     OUTPUT_DATA_DIR,
@@ -75,30 +77,44 @@ def load_raw_dataframes(
     return df_log, df_user, df_content
 
 
-def load_data_from_database(
-    start_date: datetime, end_date: datetime, sqlmodel_engine: Engine
+def load_data_for_training(
+    start_date: datetime,
+    end_date: datetime,
+    sqlmodel_engine: Engine,
+    curated_log_root: Path = CURATED_LOG_DIR,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Load log, user, and content frames from the database."""
-    log_query = """
-        SELECT *
-        FROM log_problem
-        WHERE "timestamp_TW" >= %(start)s
-        AND "timestamp_TW" < %(end)s
-        """
-    df_log = pd.read_sql(
-        log_query, sqlmodel_engine, params={"start": start_date, "end": end_date}
-    )
-
+    """Load date-filtered event history from Parquet and dimensions from PostgreSQL."""
+    partitions: list[Path] = []
+    partition_month = datetime(start_date.year, start_date.month, 1)
+    while partition_month < end_date:
+        path = (
+            curated_log_root
+            / f"year={partition_month.year}"
+            / f"month={partition_month.month:02d}"
+        )
+        if path.exists():
+            partitions.append(path)
+        if partition_month.month == 12:
+            partition_month = datetime(partition_month.year + 1, 1, 1)
+        else:
+            partition_month = datetime(
+                partition_month.year, partition_month.month + 1, 1
+            )
+    frames = [pd.read_parquet(path) for path in partitions]
+    if not frames:
+        raise FileNotFoundError(
+            f"No curated log partitions found under {curated_log_root}"
+        )
+    df_log = pd.concat(frames, ignore_index=True)
+    df_log = df_log.loc[
+        (df_log["timestamp_TW"] >= start_date) & (df_log["timestamp_TW"] < end_date)
+    ].copy()
     selected_uuid = df_log["uuid"].unique().tolist()
-    user_query = """
-        SELECT *
-        FROM user_profile
-        WHERE uuid = ANY(%(selected_uuid)s)
-        """
     df_user = pd.read_sql(
-        user_query, sqlmodel_engine, params={"selected_uuid": selected_uuid}
+        "SELECT * FROM user_profile WHERE uuid = ANY(%(selected_uuid)s)",
+        sqlmodel_engine,
+        params={"selected_uuid": selected_uuid},
     )
-
     df_content = pd.read_sql("SELECT * FROM info_content;", sqlmodel_engine)
     return df_log, df_user, df_content
 

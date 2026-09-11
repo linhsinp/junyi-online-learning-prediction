@@ -7,7 +7,7 @@ START_DATE ?= 2019-06-01T00:00:00
 END_DATE ?= 2019-06-10T00:00:00
 NUM_SAMPLES ?= 1000
 
-.PHONY: help test lint helm-lint helm-template flyte-training-local postgres-local kind-create seed-local
+.PHONY: help test lint helm-lint helm-template flyte-training-local postgres-local kind-create download-data materialize-parquet reset-local seed-local
 
 help:
 	@echo "Available targets:"
@@ -18,6 +18,9 @@ help:
 	@echo "  make helm-template"
 	@echo "  make kind-create"
 	@echo "  make postgres-local"
+	@echo "  make download-data"
+	@echo "  make materialize-parquet"
+	@echo "  make reset-local DATABASE_URL=..."
 	@echo "  make seed-local DATABASE_URL=..."
 	@echo "  make flyte-training-local START_DATE=... END_DATE=..."
 
@@ -39,9 +42,20 @@ kind-create:
 postgres-local:
 	helm upgrade --install junyi-postgres infra/helm/local-postgres \
 		--namespace junyi-local --create-namespace
+	kubectl rollout status statefulset/junyi-postgres-postgres \
+		--namespace junyi-local --timeout=120s
+
+download-data:
+	PYTHONPATH=src $(UV) run python -m junyi_predictor.cli download-data
+
+materialize-parquet:
+	PYTHONPATH=src $(UV) run python -m junyi_predictor.cli materialize-parquet
+
+reset-local:
+	DATABASE_URL="$(DATABASE_URL)" PYTHONPATH=src $(UV) run python -m junyi_predictor.cli reset-db
 
 seed-local:
-	DATABASE_URL="$(DATABASE_URL)" $(UV) run python -m junyi_predictor.cli seed-db
+	DATABASE_URL="$(DATABASE_URL)" PYTHONPATH=src $(UV) run python -m junyi_predictor.cli seed-db
 
 flyte-training-local:
 	@set -a; [ -f .env ] && . ./.env; set +a; \

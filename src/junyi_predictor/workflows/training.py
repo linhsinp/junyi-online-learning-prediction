@@ -15,7 +15,7 @@ from junyi_predictor.contracts import FeatureSnapshot
 from junyi_predictor.pipeline.constants import MODEL_TYPES
 from junyi_predictor.pipeline.feature_engineering import build_feature_stage
 from junyi_predictor.pipeline.preprocessing import (
-    load_data_from_database,
+    load_data_for_training,
     preprocess_stage,
 )
 from junyi_predictor.pipeline.training import (
@@ -69,7 +69,7 @@ async def materialize_features(
     """Load, preprocess, and materialize a durable feature snapshot."""
     settings = Settings.from_environment()
     engine = create_engine(settings.database_url)
-    df_log, df_user, df_content = load_data_from_database(start_date, end_date, engine)
+    df_log, df_user, df_content = load_data_for_training(start_date, end_date, engine)
     preprocessed = preprocess_stage(df_log, df_user, df_content)
     featured = build_feature_stage(
         preprocessed.log, preprocessed.user, preprocessed.content

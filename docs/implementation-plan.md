@@ -35,7 +35,10 @@ flowchart LR
   REG --> GCS[(Artifact store)]
 ```
 
-- PostgreSQL stores source, processed, and relational feature data.
+- The data lake stores immutable raw CSV and cleaned, date-partitioned Parquet
+  event history used for training.
+- PostgreSQL stores small relational dimensions, processed run outputs, and
+  relational feature data; it does not store the complete event history.
 - The artifact store holds run-scoped feature matrices, model bundles, scalers,
   metrics, manifests, and the approved-model pointer.
 - `PipelineRun`, `FeatureSnapshot`, and `ModelRegistration` provide durable
@@ -68,8 +71,12 @@ Split images only after package or hardware requirements differ.
 
 1. Create kind from `infra/local/kind.yaml`.
 2. Install PostgreSQL with `make postgres-local`.
-3. Download Kaggle data and seed PostgreSQL source tables.
-4. Run `make flyte-training-local` using the kind NodePort database URL.
+3. Run `make download-data`, then `make materialize-parquet` to create
+   year/month-partitioned training events under `artifacts/data/curated/`.
+4. Run `make seed-local` to seed only PostgreSQL dimension tables. Before
+   reseeding an existing local database, run `make reset-local` to recreate the
+   local schema.
+5. Run `make flyte-training-local` using the kind NodePort database URL.
 5. Verify a feature snapshot, model bundle, metrics, manifest, and approved
    model pointer under `artifacts/runs/`.
 

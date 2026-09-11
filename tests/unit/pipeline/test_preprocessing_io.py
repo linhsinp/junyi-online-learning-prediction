@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from junyi_predictor.pipeline.preprocessing import (
-    load_data_from_database,
+    load_data_for_training,
     load_raw_dataframes,
 )
 
@@ -75,31 +75,34 @@ def test_load_raw_dataframes_rejects_empty_inputs(tmp_path):
         load_raw_dataframes(str(log_path), str(user_path), str(content_path))
 
 
-def test_load_data_from_database_queries_log_user_and_content(
-    monkeypatch: pytest.MonkeyPatch,
+def test_load_data_for_training_reads_only_requested_month_partitions(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
 ):
-    queries: list[tuple[str, object]] = []
-    frames = [
-        pd.DataFrame({"uuid": ["u1", "u2"]}),
-        pd.DataFrame({"uuid": ["u1", "u2"], "gender": ["female", "male"]}),
+    curated_root = tmp_path / "curated"
+    june = curated_root / "year=2024" / "month=06"
+    july = curated_root / "year=2024" / "month=07"
+    june.mkdir(parents=True)
+    july.mkdir(parents=True)
+    parquet_paths: list[object] = []
+    sql_frames = [
+        pd.DataFrame({"uuid": ["u1"], "gender": ["female"]}),
         pd.DataFrame({"ucid": ["c1"]}),
     ]
 
-    def fake_read_sql(query, engine, params=None):
-        queries.append((query.strip(), params))
-        return frames.pop(0)
+    def fake_read_parquet(path):
+        parquet_paths.append(path)
+        return pd.DataFrame(
+            {"timestamp_TW": [pd.Timestamp("2024-06-15")], "uuid": ["u1"]}
+        )
 
-    monkeypatch.setattr(pd, "read_sql", fake_read_sql)
+    monkeypatch.setattr(pd, "read_parquet", fake_read_parquet)
+    monkeypatch.setattr(pd, "read_sql", lambda *_args, **_kwargs: sql_frames.pop(0))
 
-    df_log, df_user, df_content = load_data_from_database(
-        start_date=datetime(2024, 1, 1),
-        end_date=datetime(2024, 1, 2),
-        sqlmodel_engine="engine",
+    df_log, df_user, df_content = load_data_for_training(
+        datetime(2024, 6, 10), datetime(2024, 6, 20), "engine", curated_root
     )
 
-    assert list(df_log["uuid"]) == ["u1", "u2"]
-    assert list(df_user["uuid"]) == ["u1", "u2"]
+    assert parquet_paths == [june]
+    assert list(df_log["uuid"]) == ["u1"]
+    assert list(df_user["uuid"]) == ["u1"]
     assert list(df_content["ucid"]) == ["c1"]
-    assert "FROM log_problem" in queries[0][0]
-    assert queries[1][1] == {"selected_uuid": ["u1", "u2"]}
-    assert queries[2][0] == "SELECT * FROM info_content;"
