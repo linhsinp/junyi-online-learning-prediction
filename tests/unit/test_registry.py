@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import numpy as np
@@ -26,3 +27,5 @@ def test_register_model_writes_immutable_bundle_and_approved_pointer(tmp_path: P
     assert Path(registration.model_uri).exists()
     assert Path(registration.scaler_uri).exists()
     assert (tmp_path / "models" / "approved.json").exists()
+    manifest = json.loads((tmp_path / "models" / "run-1" / "manifest.json").read_text())
+    assert manifest["manifest_uri"] == registration.manifest_uri

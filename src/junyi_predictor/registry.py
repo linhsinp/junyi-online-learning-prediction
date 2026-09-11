@@ -44,11 +44,13 @@ def register_model(
         model_type=model_type,
         test_score=float(metrics[model_type]["test_score"]),
     )
+    manifest_key = f"{prefix}/manifest.json"
     manifest_uri = store.put_json(
         registration.model_dump(mode="json"), f"{prefix}/manifest.json"
     )
     registration = ModelRegistration(
         **{**registration.model_dump(), "manifest_uri": manifest_uri}
     )
+    store.put_json(registration.model_dump(mode="json"), manifest_key)
     store.put_json(registration.model_dump(mode="json"), "models/approved.json")
     return registration
