@@ -8,7 +8,7 @@ This repository trains and evaluates student-performance prediction models for t
 - `junyi_predictor.pipeline.feature_engineering`
 - `junyi_predictor.pipeline.training`
 
-Flyte 2 orchestrates those stages through tasks in `orchestration/flyte_app.py`, using the `flyte` CLI for local execution.
+Flyte 2 orchestrates durable training through tasks in `src/junyi_predictor/workflows/training.py`.
 
 ## Setup
 
@@ -20,8 +20,7 @@ This repository is expected to run only from the `uv`-managed virtual environmen
 uv sync --all-groups
 ```
 
-2. Make sure `.env` contains a working `DATABASE_URL`.
-3. If you want to run the GCS-backed training workflow, ensure Google Cloud credentials are available locally.
+2. For cloud-free integration work, install PostgreSQL into kind and use its NodePort connection string.
 
 ## Run Tests
 
@@ -32,72 +31,89 @@ make test
 make lint
 ```
 
-## Deploy to Kubernetes
+## Run the local end-to-end workflow
+
+Create kind and install PostgreSQL through Helm:
+
+```bash
+make kind-create
+make postgres-local
+```
+
+Download the Kaggle dataset, convert the event history into partitioned Parquet,
+then seed only the small relational dimension tables in PostgreSQL:
+
+```bash
+make download-data
+make materialize-parquet
+make reset-local # required before reseeding; drops local source tables
+make seed-local
+```
+
+Run the durable Flyte workflow locally. It uses the filesystem artifact store under `artifacts/runs/` and executes preprocessing, feature materialization, and training/registration as separate local Flyte actions:
+
+```bash
+DATABASE_URL=postgresql://junyi:junyi-local-only@localhost:30001/junyi \
+make flyte-training-local START_DATE=2019-06-01T00:00:00 END_DATE=2019-06-10T00:00:00
+```
+
+For an interactive local task-progress display, use the TUI target instead:
+
+```bash
+make flyte-training-local-tui START_DATE=2019-06-01T00:00:00 END_DATE=2019-06-10T00:00:00
+```
+
+## Planned remote GKE demonstration
+
+The remote Flyte OSS demonstration is follow-up work and is not validated by the local workflow. The configuration below documents the intended cloud path.
 
 Use Terraform and Helm for different responsibilities:
 
-- `infra/terraform/` provisions cloud resources such as the GCS bucket and IAM bindings.
-- `infra/helm/junyi-predictor/` defines Kubernetes runtime workloads and cluster-level configuration.
-- `infra/docker/` contains the Dockerfiles used to build runtime images.
+- `infra/terraform/demo/` provisions an ephemeral GKE, Cloud SQL, GCS, Artifact Registry, and Workload Identity environment.
+- `infra/helm/flyte/` configures the Flyte OSS control plane.
+- `infra/docker/` contains the single runtime image definition.
 
-Render the default one-off training job:
-
-```bash
-helm template junyi ./infra/helm/junyi-predictor \
-  -f ./infra/helm/junyi-predictor/values-full-pipeline.yaml
-```
-
-Install a scheduled GCS-backed training workload:
+Bootstrap a Terraform state bucket once, then initialize the destroyable GKE environment:
 
 ```bash
-helm upgrade --install junyi ./infra/helm/junyi-predictor \
-  -f ./infra/helm/junyi-predictor/values-train-from-gcs.yaml
+terraform -chdir=infra/terraform/bootstrap init
+terraform -chdir=infra/terraform/bootstrap apply
+terraform -chdir=infra/terraform/demo init \
+  -backend-config="bucket=<state-bucket>" \
+  -backend-config="prefix=junyi/demo"
 ```
 
-Point `secretEnv` entries in the values files at existing Kubernetes secrets for `DATABASE_URL` or cloud credentials.
-
-## Run Flyte Locally
-
-Run the end-to-end workflow:
+Build and push the runtime image, register the workflow with `flyte deploy`, run one remote execution, then destroy the environment after the demonstration:
 
 ```bash
-make flyte-local START_DATE=2019-06-01T00:00:00 END_DATE=2019-06-10T00:00:00 NUM_SAMPLES=1000
+terraform -chdir=infra/terraform/demo destroy
 ```
 
-Run only preprocessing:
-
-```bash
-make flyte-preprocess-local START_DATE=2019-06-01T00:00:00 END_DATE=2019-06-10T00:00:00
-```
-
-Run the GCS-backed training workflow:
-
-```bash
-make flyte-train-local
-```
+Remote tasks use Workload Identity and `ARTIFACT_BACKEND=gcs`; do not mount service-account JSON keys.
 
 ## Main Entry Points
 
-- `orchestration/flyte_app.py`: Flyte 2 task entrypoints for preprocessing, full pipeline execution, and GCS-backed training.
-- `junyi_predictor/pipeline/preprocessing.py`: preprocessing stage contract and transformations.
-- `junyi_predictor/pipeline/feature_engineering.py`: feature engineering stage contract and transformations.
-- `junyi_predictor/pipeline/training.py`: training split and model execution helpers.
-- `junyi_predictor/bootstrap/database.py`: utility for creating and loading PostgreSQL tables from raw artifact files.
-- `junyi_predictor/bootstrap/kaggle.py`: utility for downloading the raw Kaggle dataset into local artifacts.
-- `infra/docker/`: container build definitions for local and cluster execution.
-- `infra/helm/junyi-predictor/`: Kubernetes packaging for one-off and scheduled runtime workloads.
-- `infra/terraform/`: cloud infrastructure provisioning.
+- `src/junyi_predictor/workflows/training.py`: composed Flyte training workflow.
+- `src/junyi_predictor/pipeline/`: plain preprocessing, feature, and training stages.
+- `src/junyi_predictor/bootstrap/`: Kaggle download and PostgreSQL seeding.
+- `infra/docker/`: the single runtime image.
+- `infra/helm/local-postgres/`: local kind PostgreSQL chart.
+- `infra/helm/flyte/`: Flyte OSS values overlay.
+- `infra/terraform/`: bootstrap and cloud demonstration provisioning.
 
 ## Outputs
 
-- Intermediate local artifacts: `artifacts/data/output/`, `artifacts/data/experiment/`, `artifacts/data/feature_store/`
-- Model artifacts: `artifacts/model/`
+- Curated training events: `artifacts/data/curated/log_problem/year=*/month=*/`
+- Preprocessed task handoff: `artifacts/runs/runs/<run-id>/preprocessed/`
+- Run-scoped artifacts: `artifacts/runs/runs/<run-id>/`
+- Registered models: `artifacts/runs/models/<model-version>/`
 - Architecture reference: `docs/current-system-design.md`
 
 ## Troubleshooting
 
 - If Flyte cannot connect to Postgres, fix `DATABASE_URL` first.
-- If `flyte-train-local` fails, verify GCS credentials and bucket contents.
-- If imports fail, run commands from the repository root.
+- If `flyte-training-local` fails, verify the kind PostgreSQL release and its NodePort connection string.
+- Source code lives under `src/`; use the provided Make targets for operational
+  commands. If calling a module directly, prefix it with `PYTHONPATH=src`.
 - This repo targets the Flyte 2 `flyte` CLI, not `pyflyte`, and local runs use `flyte run --local ...`.
 - Do not use `pyenv`, `python -m venv`, or ad hoc `pip install`; use `uv sync` and `uv run` only.

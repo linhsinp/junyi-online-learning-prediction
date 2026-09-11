@@ -1,0 +1,15 @@
+image:
+  repository: postgres
+  tag: "16-alpine"
+
+auth:
+  database: junyi
+  username: junyi
+  password: junyi-local-only
+
+service:
+  type: NodePort
+  nodePort: 30001
+
+persistence:
+  size: 2Gi

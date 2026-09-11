@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Core execution code lives in `junyi_predictor/`. Stage logic is split across `junyi_predictor/pipeline/preprocessing.py`, `junyi_predictor/pipeline/feature_engineering.py`, and `junyi_predictor/pipeline/training.py`, with storage adapters in `junyi_predictor/storage/`. Bootstrap utilities live in `junyi_predictor/bootstrap/`, and Flyte 2 entrypoints live in `orchestration/flyte_app.py`. Keep infrastructure concerns separated under `infra/`: `infra/terraform/` is for cloud resource provisioning, `infra/helm/junyi-predictor/` is for Kubernetes workload deployment, and `infra/docker/` contains container build definitions. Tests are in `tests/`, exploratory work in `notebooks/`, and generated artifacts live under the gitignored `artifacts/{data,model}/` tree.
+Core execution code lives in `src/junyi_predictor/`. Stage logic is split across `pipeline/`, durable artifact and registry adapters live in `storage/` and `registry.py`, and Flyte 2 entrypoints live in `workflows/`. Keep infrastructure concerns separated under `infra/`: `infra/terraform/` is for cloud provisioning, `infra/helm/local-postgres/` is for local Kubernetes development, `infra/helm/flyte/` configures the Flyte control plane, and `infra/docker/` contains the runtime image. Tests are in `tests/`, exploratory work in `notebooks/`, and generated artifacts live under the gitignored `artifacts/` tree.
 
 ## Build, Test, and Development Commands
 Use `uv` as the only supported environment manager for this repository:
@@ -11,8 +11,8 @@ Use `uv` as the only supported environment manager for this repository:
 - `uv run ruff check .`: lint Python files.
 - `uv run ruff format .`: apply formatting.
 - `uv run isort .`: normalize import order.
-- `helm lint infra/helm/junyi-predictor`: validate the Kubernetes chart.
-- `make flyte-local`: run the Flyte 2 full pipeline entrypoint locally with `flyte run --local`.
+- `helm lint infra/helm/local-postgres`: validate the local development chart.
+- `make flyte-training-local`: run the Flyte 2 training entrypoint locally with `flyte run --local`.
 - `pre-commit run --all-files`: run the same checks used before commits.
 
 ## Coding Style & Naming Conventions

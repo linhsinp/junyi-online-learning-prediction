@@ -1,0 +1,6 @@
+apiVersion: v2
+name: junyi-local-postgres
+description: Development-only PostgreSQL database for local Junyi integration runs.
+type: application
+version: 0.1.0
+appVersion: "16"

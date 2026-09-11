@@ -3,7 +3,7 @@
 ```mermaid
 flowchart TD
     subgraph Code[Repository Code]
-        APP[junyi_predictor/ and orchestration/]
+        APP[src/junyi_predictor/]
         TESTS[tests/unit and tests/acceptance]
         INFRA[infra/helm and infra/docker]
     end
