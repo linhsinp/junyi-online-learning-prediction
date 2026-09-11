@@ -16,6 +16,7 @@ dependencies = [
   "flyte>=2.0.6,<3",
   "google-cloud-storage>=3.1.0",
   "isort>=6.0.1",
+  "joblib>=1.4.2",
   "kaggle>=1.7.4.5",
   "matplotlib>=3.10.3",
   "numpy>=2.2.6",
@@ -43,3 +44,6 @@ prod = [
 
 [tool.uv]
 default-groups = []
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

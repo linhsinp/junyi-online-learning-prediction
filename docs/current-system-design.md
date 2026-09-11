@@ -1,13 +1,5 @@
 # Current System Design
 
-This system is easier to understand when split by concern instead of forcing runtime, infrastructure, and quality into one diagram.
+The current system is a Flyte 2 training workflow in `src/junyi_predictor/workflows/`, backed by PostgreSQL and a local or GCS artifact store. Local development uses kind and Helm PostgreSQL; the cloud demonstration uses Flyte OSS on ephemeral GKE.
 
-Use the focused design docs below:
-
-- [Application Flow](/Users/hsin-pei/Desktop/github_repo/junyi-online-learning-prediction/docs/application-flow.md): runtime data flow, Flyte entrypoints, stage modules, and outputs.
-- [Infrastructure Design](/Users/hsin-pei/Desktop/github_repo/junyi-online-learning-prediction/docs/infrastructure-design.md): `infra/terraform`, `infra/helm`, and `infra/docker` responsibilities.
-- [Quality and Delivery](/Users/hsin-pei/Desktop/github_repo/junyi-online-learning-prediction/docs/quality-and-delivery.md): test layout and CI validation flow.
-
-Supporting operations docs:
-
-- [Local Docker and Kubernetes Testing](/Users/hsin-pei/Desktop/github_repo/junyi-online-learning-prediction/docs/local-docker-k8s-testing.md)
+The authoritative design, delivery stages, local runbook, and cloud boundary are documented in [the implementation plan](/Users/hsin-pei/Desktop/github_repo/junyi-online-learning-prediction/docs/implementation-plan.md).

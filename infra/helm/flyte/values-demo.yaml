@@ -1,0 +1,11 @@
+# Pin the Flyte chart version through Terraform. Terraform sets the Cloud SQL
+# host, database, username, password, and GCS bucket names at deployment time.
+configuration:
+  database:
+    options: sslmode=disable
+  storage:
+    provider: gcs
+
+# The exact chart keys are intentionally kept in one overlay. Update this file
+# against the pinned Flyte OSS chart before a cloud demo, rather than changing
+# application Helm charts.

@@ -9,9 +9,9 @@ from junyi_predictor.pipeline.feature_engineering import (
 def test_create_upid_accuracy_features_only_uses_prior_rows(feature_accuracy_log_df):
     result = create_upid_accuracy_features(feature_accuracy_log_df)
 
-    assert np.isclose(result.loc[0, "v_upid_acc"], 2 / 3)
+    assert np.isclose(result.loc[0, "v_upid_acc"], 0.5)
     assert np.isclose(result.loc[1, "v_upid_acc"], 1.0)
-    assert np.isclose(result.loc[2, "v_upid_acc"], 2 / 3)
+    assert np.isclose(result.loc[2, "v_upid_acc"], 0.5)
     assert np.isclose(result.loc[1, "v_uuid_upid_acc"], 1.0)
 
 

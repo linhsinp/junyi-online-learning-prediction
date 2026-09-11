@@ -1,10 +1,13 @@
 UV := uv
 
+DATABASE_URL ?= postgresql://junyi:junyi-local-only@localhost:30001/junyi
+export DATABASE_URL
+
 START_DATE ?= 2019-06-01T00:00:00
 END_DATE ?= 2019-06-10T00:00:00
 NUM_SAMPLES ?= 1000
 
-.PHONY: help test lint helm-lint helm-template flyte-local flyte-preprocess-local flyte-train-local
+.PHONY: help test lint helm-lint helm-template flyte-training-local postgres-local kind-create seed-local
 
 help:
 	@echo "Available targets:"
@@ -13,40 +16,35 @@ help:
 	@echo "  make lint"
 	@echo "  make helm-lint"
 	@echo "  make helm-template"
-	@echo "  make flyte-local START_DATE=... END_DATE=... NUM_SAMPLES=..."
-	@echo "  make flyte-preprocess-local START_DATE=... END_DATE=..."
-	@echo "  make flyte-train-local"
+	@echo "  make kind-create"
+	@echo "  make postgres-local"
+	@echo "  make seed-local DATABASE_URL=..."
+	@echo "  make flyte-training-local START_DATE=... END_DATE=..."
 
 test:
 	$(UV) run pytest
 
 lint:
-	$(UV) run ruff check junyi_predictor orchestration tests
+	$(UV) run ruff check src tests
 
 helm-lint:
-	helm lint ./infra/helm/junyi-predictor
+	helm lint ./infra/helm/local-postgres
 
 helm-template:
-	helm template junyi ./infra/helm/junyi-predictor \
-		-f ./infra/helm/junyi-predictor/values-full-pipeline.yaml >/dev/null
-	helm template junyi ./infra/helm/junyi-predictor \
-		-f ./infra/helm/junyi-predictor/values-preprocess.yaml >/dev/null
-	helm template junyi ./infra/helm/junyi-predictor \
-		-f ./infra/helm/junyi-predictor/values-train-from-gcs.yaml >/dev/null
+	helm template junyi ./infra/helm/local-postgres >/dev/null
 
-flyte-local:
-	@set -a; [ -f .env ] && . ./.env; set +a; \
-	PYTHONPATH=. $(UV) run flyte run --local orchestration/flyte_app.py full_pipeline \
-		--start_date "$(START_DATE)" \
-		--end_date "$(END_DATE)" \
-		--num_samples "$(NUM_SAMPLES)"
+kind-create:
+	kind create cluster --name junyi --config infra/local/kind.yaml
 
-flyte-preprocess-local:
-	@set -a; [ -f .env ] && . ./.env; set +a; \
-	PYTHONPATH=. $(UV) run flyte run --local orchestration/flyte_app.py preprocess_from_database \
-		--start_date "$(START_DATE)" \
-		--end_date "$(END_DATE)"
+postgres-local:
+	helm upgrade --install junyi-postgres infra/helm/local-postgres \
+		--namespace junyi-local --create-namespace
 
-flyte-train-local:
+seed-local:
+	DATABASE_URL="$(DATABASE_URL)" $(UV) run python -m junyi_predictor.cli seed-db
+
+flyte-training-local:
 	@set -a; [ -f .env ] && . ./.env; set +a; \
-	PYTHONPATH=. $(UV) run flyte run --local orchestration/flyte_app.py train_from_gcs
+	ARTIFACT_BACKEND=local ARTIFACT_ROOT=artifacts/runs \
+	PYTHONPATH=src $(UV) run flyte run --local src/junyi_predictor/workflows/training.py training_pipeline \
+		--start_date "$(START_DATE)" --end_date "$(END_DATE)"

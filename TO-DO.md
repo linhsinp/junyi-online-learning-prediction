@@ -1,5 +1,5 @@
 # TO-DO
 
-- Add deeper Kubernetes deployment validation in CI, either with `helm install --dry-run --debug` or a `kind`-based CI job.
-- Deploy runtime jobs as an application through the automated CI pipeline.
-- Document and refine the target Kubernetes deployment architecture, including database, object storage, secrets, identity, and registry requirements.
+- Add a kind-based integration job that installs PostgreSQL, seeds a fixture, and runs the Flyte workflow locally.
+- Add a manually gated CI workflow that builds and pushes the runtime image before an ephemeral GKE demonstration.
+- Implement batch inference against the `models/approved.json` registry pointer, then add data and model monitoring.

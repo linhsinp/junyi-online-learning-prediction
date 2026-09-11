@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+__pycache__/
+*.py[cod]
+.coverage
+artifacts/
+.env
+.envrc
+kaggle.json
+gcs-service-account.json
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*

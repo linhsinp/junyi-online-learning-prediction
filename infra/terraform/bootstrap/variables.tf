@@ -1,0 +1,12 @@
+variable "project_id" {
+  type = string
+}
+
+variable "region" {
+  type    = string
+  default = "europe-west3"
+}
+
+variable "state_bucket_name" {
+  type = string
+}

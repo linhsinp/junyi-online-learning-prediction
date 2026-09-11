@@ -10,6 +10,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:/root/.cargo/bin:${PATH}"
+ENV PYTHONPATH="/app/src"
 
 COPY pyproject.toml uv.lock README.md /app/
 RUN uv sync --frozen --no-dev
@@ -17,4 +18,4 @@ RUN uv sync --frozen --no-dev
 COPY . /app
 RUN uv sync --frozen --no-dev
 
-CMD ["uv", "run", "python", "-m", "orchestration.flyte_app"]
+CMD ["uv", "run", "flyte", "--help"]

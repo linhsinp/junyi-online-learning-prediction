@@ -40,3 +40,12 @@ def test_training_helpers_scale_features_and_train_models(
     assert np.all(X_train_scaled <= 1)
     assert metrics["train_score"] >= 0.5
     assert metrics["test_score"] >= 0.5
+
+
+def test_scaler_uses_training_range_for_test_data():
+    X_train_scaled, X_test_scaled = apply_min_max_transformation(
+        np.array([[0.0], [10.0]]), np.array([[20.0]])
+    )
+
+    assert np.array_equal(X_train_scaled, np.array([[0.0], [1.0]]))
+    assert np.array_equal(X_test_scaled, np.array([[2.0]]))
