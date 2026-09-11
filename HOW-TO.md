@@ -50,7 +50,7 @@ make reset-local # required before reseeding; drops local source tables
 make seed-local
 ```
 
-Run the durable Flyte workflow locally. It uses the filesystem artifact store under `artifacts/runs/`:
+Run the durable Flyte workflow locally. It uses the filesystem artifact store under `artifacts/runs/` and executes preprocessing, feature materialization, and training/registration as separate local Flyte actions:
 
 ```bash
 DATABASE_URL=postgresql://junyi:junyi-local-only@localhost:30001/junyi \
@@ -63,7 +63,9 @@ For an interactive local task-progress display, use the TUI target instead:
 make flyte-training-local-tui START_DATE=2019-06-01T00:00:00 END_DATE=2019-06-10T00:00:00
 ```
 
-## Remote GKE demonstration
+## Planned remote GKE demonstration
+
+The remote Flyte OSS demonstration is follow-up work and is not validated by the local workflow. The configuration below documents the intended cloud path.
 
 Use Terraform and Helm for different responsibilities:
 

@@ -27,8 +27,10 @@ application schedule.
 
 ```mermaid
 flowchart LR
-  PG[(PostgreSQL)] --> PRE[Preprocess task]
-  PRE --> FE[Feature task]
+  LAKE[(Partitioned Parquet)] --> PRE[Preprocess task]
+  PG[(PostgreSQL dimensions)] --> PRE
+  PRE --> PS[(Preprocessed snapshot)]
+  PS --> FE[Feature task]
   FE --> FS[(Feature snapshot)]
   FS --> TRAIN[Train and register task]
   TRAIN --> REG[(Approved model manifest)]
@@ -79,7 +81,7 @@ Split images only after package or hardware requirements differ.
    reseeding an existing local database, run `make reset-local` to recreate the
    local schema.
 5. Run `make flyte-training-local` using the kind NodePort database URL.
-5. Verify a feature snapshot, model bundle, metrics, manifest, and approved
+6. Verify preprocessed and feature snapshots, a model bundle, metrics, manifest, and approved
    model pointer under `artifacts/runs/`.
 
 Flyte local mode validates composition and durable interfaces from the host. A
@@ -90,6 +92,10 @@ The local workflow has three task boundaries: preprocessing persists the
 preprocessed log and dimensions under `runs/<run-id>/preprocessed/`; feature
 engineering consumes that snapshot and writes `runs/<run-id>/features/`; training
 consumes the feature snapshot and registers the model.
+
+Use `make flyte-training-local-tui` for an interactive display of a newly
+launched local run. The TUI is local-only; browser-based Flyte run history and
+per-task Kubernetes pods require the stage 4 Flyte OSS deployment.
 
 ### 4. Ephemeral cloud demonstration
 
