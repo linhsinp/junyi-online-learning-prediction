@@ -190,11 +190,12 @@ def chunked_upload_with_validation(
 
 @timed("bootstrap.reset_database")
 def reset_database(engine_url: str = DEFAULT_ENGINE_URL) -> None:
-    """Drop local source tables so the database can be seeded from scratch."""
+    """Drop source and workflow-output tables so the database can be rebuilt."""
     engine = create_engine(engine_url)
-    # Remove the legacy event table before dropping its referenced dimensions.
     with engine.begin() as connection:
         connection.execute(text("DROP TABLE IF EXISTS log_problem CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS processed_log CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS feature_snapshot CASCADE"))
     SQLModel.metadata.drop_all(engine)
 
 
