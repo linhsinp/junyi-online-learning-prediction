@@ -10,8 +10,7 @@ from uuid import uuid4
 
 import flyte
 import numpy as np
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.exc import NoSuchTableError
+from sqlalchemy import create_engine
 
 from junyi_predictor.contracts import FeatureSnapshot, PipelineRun, PreprocessedSnapshot
 from junyi_predictor.pipeline.constants import MODEL_TYPES
@@ -84,19 +83,6 @@ def _preprocessed_keys(training_run_id: str) -> tuple[str, str, str]:
     )
 
 
-def _training_run_column(engine, table_name: str) -> str:
-    """Use the new metadata name while keeping existing local output tables readable."""
-    try:
-        columns = {column["name"] for column in inspect(engine).get_columns(table_name)}
-    except NoSuchTableError:
-        columns = set()
-    if "training_run_id" in columns or not columns:
-        return "training_run_id"
-    if "pipeline_run_id" in columns:
-        return "pipeline_run_id"
-    return "training_run_id"
-
-
 @preprocess_env.task(retries=1)
 @task_logging("preprocessing")
 async def materialize_preprocessed(
@@ -122,8 +108,7 @@ async def materialize_preprocessed(
         table="processed_log",
         row_count=len(preprocessed.log),
     ):
-        run_column = _training_run_column(engine, "processed_log")
-        preprocessed.log.assign(**{run_column: run.training_run_id}).to_sql(
+        preprocessed.log.assign(training_run_id=run.training_run_id).to_sql(
             "processed_log", engine, if_exists="append", index=False
         )
     log_key, user_key, content_key = _preprocessed_keys(run.training_run_id)
@@ -193,8 +178,7 @@ async def materialize_feature_snapshot(preprocessed_payload: dict) -> dict:
         table="feature_snapshot",
         row_count=len(featured.log),
     ):
-        run_column = _training_run_column(engine, "feature_snapshot")
-        featured.log.assign(**{run_column: snapshot.training_run_id}).to_sql(
+        featured.log.assign(training_run_id=snapshot.training_run_id).to_sql(
             "feature_snapshot", engine, if_exists="append", index=False
         )
     store = _store_from_settings()

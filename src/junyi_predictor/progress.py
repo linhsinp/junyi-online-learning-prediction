@@ -281,7 +281,7 @@ def task_logging(
             payload = next(
                 (v for v in arguments.arguments.values() if isinstance(v, dict)), {}
             )
-            training_run_id = payload.get("training_run_id", payload.get("run_id"))
+            training_run_id = payload.get("training_run_id")
             if stage == "pipeline":
                 training_run_id = (
                     arguments.arguments.get("training_run_id")

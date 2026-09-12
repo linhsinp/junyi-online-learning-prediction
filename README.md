@@ -50,5 +50,11 @@ Use `make reset-local` before reseeding an existing local database. It drops
 the local source tables and their contents before they are recreated by
 `make seed-local`.
 
+This development workflow does not support migrating older run-output tables:
+after pulling the structured-logging changes, run `make reset-local` followed by
+`make seed-local` before launching a new training run. Rebuild curated files
+with `make materialize-parquet` when the local data artifacts also need a fresh
+state.
+
 
 Open source dataset on Kaggle: [Junyi Academy Online Learning Activity Dataset](https://www.kaggle.com/datasets/junyiacademy/learning-activity-public-dataset-by-junyi-academy/)

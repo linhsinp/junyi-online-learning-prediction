@@ -27,19 +27,3 @@ def test_preprocessed_snapshot_rejects_invalid_durable_artifact_metadata():
             content_uri="artifacts/content.parquet",
             row_count=-1,
         )
-
-
-def test_legacy_run_id_payload_is_accepted_but_new_payload_uses_training_run_id():
-    run = PipelineRun(
-        run_id="legacy-run",
-        start_date=datetime(2024, 1, 1, tzinfo=timezone.utc),
-        end_date=datetime(2024, 1, 2, tzinfo=timezone.utc),
-    )
-    payload = run.model_dump(mode="json")
-    assert payload["training_run_id"] == "legacy-run"
-    assert "run_id" not in payload
-    legacy = {
-        "run_id": "legacy-run",
-        **{k: v for k, v in payload.items() if k != "training_run_id"},
-    }
-    assert PipelineRun.model_validate(legacy) == run

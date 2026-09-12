@@ -35,6 +35,12 @@ The current date filter is start-inclusive and end-exclusive: June 1 through
 June 10 at midnight selects nine days. Logs report the requested interval and
 the actual number of filtered events.
 
+This repository is still in development and intentionally has no compatibility
+adapter for pre-structured-logging run-output schemas. Reset and recreate a
+local database with `make reset-local` then `make seed-local` before running the
+workflow after updating the code. If curated input artifacts are stale, also
+run `make materialize-parquet`.
+
 ## Configuration
 
 | Variable | Default | Behavior |
