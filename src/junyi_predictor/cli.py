@@ -11,6 +11,7 @@ from junyi_predictor.bootstrap.database import (
 )
 from junyi_predictor.bootstrap.kaggle import download_kaggle_data
 from junyi_predictor.bootstrap.lake import materialize_log_parquet
+from junyi_predictor.progress import execution
 
 
 def main() -> None:
@@ -23,14 +24,15 @@ def main() -> None:
     subcommands.add_parser("seed-db")
     args = parser.parse_args()
 
-    if args.command == "download-data":
-        download_kaggle_data()
-    elif args.command == "materialize-parquet":
-        materialize_log_parquet()
-    elif args.command == "reset-db":
-        reset_database(os.environ["DATABASE_URL"])
-    else:
-        seed_database_from_raw_files(os.environ["DATABASE_URL"])
+    with execution(args.command, service="junyi-bootstrap"):
+        if args.command == "download-data":
+            download_kaggle_data()
+        elif args.command == "materialize-parquet":
+            materialize_log_parquet()
+        elif args.command == "reset-db":
+            reset_database(os.environ["DATABASE_URL"])
+        else:
+            seed_database_from_raw_files(os.environ["DATABASE_URL"])
 
 
 if __name__ == "__main__":

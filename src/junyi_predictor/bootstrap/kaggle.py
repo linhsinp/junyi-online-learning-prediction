@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from junyi_predictor.paths import RAW_DATA_DIR
+from junyi_predictor.progress import timed
 
 KAGGLE_DATASET = "junyiacademy/learning-activity-public-dataset-by-junyi-academy"
 
@@ -15,6 +16,7 @@ def _get_kaggle_api_class():
     return KaggleApi
 
 
+@timed("bootstrap.download_kaggle")
 def download_kaggle_data(output_dir: str | Path = RAW_DATA_DIR) -> None:
     """Download and extract the Junyi raw CSV dataset into the raw artifact path."""
     destination = Path(output_dir)

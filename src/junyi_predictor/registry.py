@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import joblib
 
 from junyi_predictor.contracts import ModelRegistration
+from junyi_predictor.progress import operation, timed
 from junyi_predictor.storage.artifacts import ArtifactStore
 
+logger = logging.getLogger(__name__)
 
+
+@timed("registration", fields=("model_type",))
 def register_model(
     store: ArtifactStore,
     run_id: str,
@@ -26,9 +31,10 @@ def register_model(
     model_path = temporary / "model.joblib"
     scaler_path = temporary / "scaler.joblib"
     metrics_path = temporary / "metrics.json"
-    joblib.dump(model, model_path)
-    joblib.dump(scaler, scaler_path)
-    metrics_path.write_text(json.dumps(metrics, indent=2, sort_keys=True))
+    with operation("model.serialize", log=logger):
+        joblib.dump(model, model_path)
+        joblib.dump(scaler, scaler_path)
+        metrics_path.write_text(json.dumps(metrics, indent=2, sort_keys=True))
 
     prefix = f"models/{version}"
     model_uri = store.put_file(model_path, f"{prefix}/model.joblib")
@@ -52,5 +58,17 @@ def register_model(
         **{**registration.model_dump(), "manifest_uri": manifest_uri}
     )
     store.put_json(registration.model_dump(mode="json"), manifest_key)
+    logger.info(
+        "Model manifest persisted",
+        extra={"event": "registration.manifest", "key": manifest_key},
+    )
     store.put_json(registration.model_dump(mode="json"), "models/approved.json")
+    logger.info(
+        "Approved model updated",
+        extra={
+            "event": "registration.approved",
+            "model_version": version,
+            "test_score": registration.test_score,
+        },
+    )
     return registration

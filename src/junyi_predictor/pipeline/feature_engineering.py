@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+
+from junyi_predictor.progress import operation, timed
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -17,6 +22,7 @@ class FeatureStageOutput:
     level4_proficiency: np.ndarray
 
 
+@timed("features.accuracy")
 def create_upid_accuracy_features(
     df_log: pd.DataFrame, prior_accuracy: float = 0.5
 ) -> pd.DataFrame:
@@ -46,11 +52,23 @@ def create_concept_proficiency_matrix(
     df_log: pd.DataFrame, list_concept_id: np.ndarray, dict_concept_id: dict
 ) -> np.ndarray:
     """Create a log-by-concept matrix containing the latest observed level for each concept."""
-    matrix = np.empty((len(df_log), len(list_concept_id)), dtype="float16")
-    matrix[:] = np.nan
-    for row_id, log in df_log.iterrows():
-        matrix[row_id, dict_concept_id[log["ucid"]]] = log["level"]
-    matrix[np.isnan(matrix)] = 0
+    shape = (len(df_log), len(list_concept_id))
+    with operation(
+        "features.concept",
+        log=logger,
+        shape=shape,
+        dtype="float16",
+        estimated_bytes=shape[0] * shape[1] * 2,
+        total_rows=len(df_log),
+    ) as progress:
+        matrix = np.empty(shape, dtype="float16")
+        matrix[:] = np.nan
+        for completed, (row_id, log) in enumerate(df_log.iterrows(), 1):
+            matrix[row_id, dict_concept_id[log["ucid"]]] = log["level"]
+            if completed % 1000 == 0:
+                progress.update(completed_rows=completed)
+        matrix[np.isnan(matrix)] = 0
+        progress.update(completed_rows=len(df_log))
     return matrix
 
 
@@ -80,24 +98,41 @@ def create_level4_proficiency_matrix(
         dict_level4_id[key]: value for key, value in dict_level4_to_ucid.items()
     }
 
-    proficiency = np.empty((len(df_log), len(list_level4_id)), dtype="float16")
-    proficiency[:] = np.nan
-    concept_level = np.empty((len(list_user_id), len(list_concept_id)))
-    concept_level[:] = np.nan
+    shape = (len(df_log), len(list_level4_id))
+    state_shape = (len(list_user_id), len(list_concept_id))
+    with operation(
+        "features.level4",
+        log=logger,
+        shape=shape,
+        dtype="float16",
+        estimated_bytes=shape[0] * shape[1] * 2,
+        state_shape=state_shape,
+        state_dtype="float64",
+        state_estimated_bytes=state_shape[0] * state_shape[1] * 8,
+        total_rows=len(df_log),
+    ) as progress:
+        proficiency = np.empty(shape, dtype="float16")
+        proficiency[:] = np.nan
+        concept_level = np.empty(state_shape)
+        concept_level[:] = np.nan
 
-    for row_id, log in df_log.iterrows():
-        user_index = dict_user_id[log["uuid"]]
-        concept_index = dict_concept_id[log["ucid"]]
-        level4_index = dict_level4_id[log["level4_id"]]
-        concept_level[user_index, concept_index] = log["level"]
-        proficiency[row_id, level4_index] = np.nansum(
-            concept_level[user_index, dict_level4_to_indices[level4_index]]
-        )
+        for completed, (row_id, log) in enumerate(df_log.iterrows(), 1):
+            user_index = dict_user_id[log["uuid"]]
+            concept_index = dict_concept_id[log["ucid"]]
+            level4_index = dict_level4_id[log["level4_id"]]
+            concept_level[user_index, concept_index] = log["level"]
+            proficiency[row_id, level4_index] = np.nansum(
+                concept_level[user_index, dict_level4_to_indices[level4_index]]
+            )
+            if completed % 1000 == 0:
+                progress.update(completed_rows=completed)
 
-    proficiency[np.isnan(proficiency)] = 0
+        proficiency[np.isnan(proficiency)] = 0
+        progress.update(completed_rows=len(df_log))
     return proficiency
 
 
+@timed("features.build")
 def build_feature_stage(
     df_log: pd.DataFrame, df_user: pd.DataFrame, df_content: pd.DataFrame
 ) -> FeatureStageOutput:

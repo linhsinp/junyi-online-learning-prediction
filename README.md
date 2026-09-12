@@ -38,6 +38,14 @@ preprocess, feature, and training as separate Flyte local actions. Use
 interactively. The application source is under `src/`; the Make targets set the
 required source path for module-based commands.
 
+Training runs emit operation starts/completions and a heartbeat every 60 seconds
+during long operations. `make flyte-training-local` displays readable events and
+persists JSONL under `artifacts/logs/`. The TUI target writes application events
+to those files so they do not interfere with its display. Each event includes
+the run, task invocation, and active operation where available.
+See [logging and progress diagnostics](docs/logging.md) for configuration,
+following a live run, and interpreting failures or interruptions.
+
 Use `make reset-local` before reseeding an existing local database. It drops
 the local source tables and their contents before they are recreated by
 `make seed-local`.

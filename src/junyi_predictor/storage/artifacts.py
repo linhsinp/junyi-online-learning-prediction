@@ -9,6 +9,8 @@ from typing import Protocol
 
 from google.cloud import storage
 
+from junyi_predictor.progress import timed
+
 
 class ArtifactStore(Protocol):
     """Persist files and JSON under a stable run-relative key."""
@@ -26,18 +28,21 @@ class LocalArtifactStore:
     def __init__(self, root: Path):
         self.root = root
 
+    @timed("artifact.write_file", fields=("key",))
     def put_file(self, source: Path, key: str) -> str:
         destination = self.root / key
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
         return str(destination)
 
+    @timed("artifact.read_file", fields=("key",))
     def get_file(self, key: str, destination: Path) -> Path:
         source = self.root / key
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
         return destination
 
+    @timed("artifact.write_json", fields=("key",))
     def put_json(self, payload: dict, key: str) -> str:
         destination = self.root / key
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -55,16 +60,19 @@ class GcsArtifactStore:
     def _key(self, key: str) -> str:
         return f"{self.prefix}/{key}" if self.prefix else key
 
+    @timed("artifact.write_file", fields=("key",))
     def put_file(self, source: Path, key: str) -> str:
         blob_key = self._key(key)
         self.bucket.blob(blob_key).upload_from_filename(source)
         return f"gs://{self.bucket.name}/{blob_key}"
 
+    @timed("artifact.read_file", fields=("key",))
     def get_file(self, key: str, destination: Path) -> Path:
         destination.parent.mkdir(parents=True, exist_ok=True)
         self.bucket.blob(self._key(key)).download_to_filename(destination)
         return destination
 
+    @timed("artifact.write_json", fields=("key",))
     def put_json(self, payload: dict, key: str) -> str:
         blob_key = self._key(key)
         self.bucket.blob(blob_key).upload_from_string(
