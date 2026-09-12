@@ -48,3 +48,7 @@ default-groups = []
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[tool.coverage.run]
+# The CLI acceptance tests execute real Flyte subprocesses.
+patch = ["subprocess"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,6 +20,9 @@ from junyi_predictor.paths import (
     TEST_DATA_DIR,
     USER_FILE,
 )
+from junyi_predictor.progress import operation, timed
+
+logger = logging.getLogger(__name__)
 
 VARS_REDUNDANT = ["total_sec_taken", "is_hint_used", "is_downgrade", "is_upgrade"]
 PATH_INPUT = str(RAW_DATA_DIR)
@@ -40,6 +44,7 @@ class PreprocessStageOutput:
     content: pd.DataFrame
 
 
+@timed("input.read_csv")
 def load_raw_dataframes(
     path_log_full: str, path_user: str, path_content: str
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
@@ -77,6 +82,7 @@ def load_raw_dataframes(
     return df_log, df_user, df_content
 
 
+@timed("input.load", heartbeat=False)
 def load_data_for_training(
     start_date: datetime,
     end_date: datetime,
@@ -102,22 +108,50 @@ def load_data_for_training(
             partition_month = datetime(
                 partition_month.year, partition_month.month + 1, 1
             )
-    frames = [pd.read_parquet(path) for path in partitions]
+    logger.info(
+        "Input partitions selected",
+        extra={
+            "event": "input.partitions",
+            "start_date": start,
+            "end_date": end,
+            "partition_count": len(partitions),
+        },
+    )
+    frames = []
+    for path in partitions:
+        with operation(
+            "input.read_parquet", log=logger, partition=str(path)
+        ) as progress:
+            frame = pd.read_parquet(path)
+            frames.append(frame)
+            progress.update(row_count=len(frame))
     if not frames:
         raise FileNotFoundError(
             f"No curated log partitions found under {curated_log_root}"
         )
     df_log = pd.concat(frames, ignore_index=True)
+    loaded_rows = len(df_log)
     df_log = df_log.loc[
         (df_log["timestamp_TW"] >= start) & (df_log["timestamp_TW"] < end)
     ].copy()
     selected_uuid = df_log["uuid"].unique().tolist()
-    df_user = pd.read_sql(
-        "SELECT * FROM user_profile WHERE uuid = ANY(%(selected_uuid)s)",
-        sqlmodel_engine,
-        params={"selected_uuid": selected_uuid},
+    with operation("input.read_dimensions", log=logger):
+        df_user = pd.read_sql(
+            "SELECT * FROM user_profile WHERE uuid = ANY(%(selected_uuid)s)",
+            sqlmodel_engine,
+            params={"selected_uuid": selected_uuid},
+        )
+        df_content = pd.read_sql("SELECT * FROM info_content;", sqlmodel_engine)
+    logger.info(
+        "Training inputs loaded",
+        extra={
+            "event": "input.loaded",
+            "loaded_rows": loaded_rows,
+            "filtered_rows": len(df_log),
+            "user_count": len(df_user),
+            "content_count": len(df_content),
+        },
     )
-    df_content = pd.read_sql("SELECT * FROM info_content;", sqlmodel_engine)
     return df_log, df_user, df_content
 
 
@@ -154,11 +188,20 @@ def preprocess_log_frame(df_log: pd.DataFrame, df_user: pd.DataFrame) -> pd.Data
     return df_log.drop(columns=VARS_REDUNDANT)
 
 
+@timed("preprocessing.transform")
 def preprocess_stage(
     df_log: pd.DataFrame, df_user: pd.DataFrame, df_content: pd.DataFrame
 ) -> PreprocessStageOutput:
     """Run the preprocessing stage and return an explicit stage contract."""
     processed_log = preprocess_log_frame(df_log=df_log, df_user=df_user)
+    logger.info(
+        "Preprocessing row counts",
+        extra={
+            "event": "preprocessing.rows",
+            "input_rows": len(df_log),
+            "output_rows": len(processed_log),
+        },
+    )
     return PreprocessStageOutput(
         log=processed_log, user=df_user.copy(), content=df_content.copy()
     )

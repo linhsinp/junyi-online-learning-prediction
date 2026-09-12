@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 import math
+from collections import Counter
 from datetime import date
 from enum import Enum
 from typing import Any
@@ -15,6 +17,9 @@ from sqlalchemy.engine import Engine
 from sqlmodel import Field, Session, SQLModel, create_engine
 
 from junyi_predictor.paths import CONTENT_FILE, USER_FILE
+from junyi_predictor.progress import timed
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_ENGINE_URL = "postgresql://postgres:postgres@localhost:30001/postgres"
 
@@ -98,6 +103,7 @@ def to_enum_aware_dict(
     }
 
 
+@timed("bootstrap.validate")
 def validate_with_sqlmodel(
     df: pd.DataFrame,
     model_class: type[SQLModel],
@@ -108,6 +114,8 @@ def validate_with_sqlmodel(
     enum_map = enum_maps.get(table_name)
 
     valid_data: list[dict[str, Any]] = []
+    rejected_rows = 0
+    reasons: Counter[str] = Counter()
     for _, row in df.iterrows():
         try:
             row_dict = row.to_dict()
@@ -116,10 +124,26 @@ def validate_with_sqlmodel(
             record = model_class(**row_dict)
             valid_data.append(record.model_dump())
         except ValidationError as error:
-            print(f"Validation failed: {error}")
+            rejected_rows += 1
+            reasons.update(
+                item["type"]
+                for item in error.errors(include_input=False, include_context=False)
+            )
+    if rejected_rows:
+        logger.warning(
+            "Rows rejected during validation",
+            extra={
+                "event": "validation.rejected",
+                "table": table_name,
+                "rejected_rows": rejected_rows,
+                "accepted_rows": len(valid_data),
+                "reasons": dict(reasons),
+            },
+        )
     return pd.DataFrame(valid_data)
 
 
+@timed("bootstrap.create_table")
 def create_table_from_dataframe(
     df: pd.DataFrame,
     model_class: type[SQLModel],
@@ -136,6 +160,7 @@ def create_table_from_dataframe(
         session.commit()
 
 
+@timed("bootstrap.upload_chunks", fields=("table_name",))
 def chunked_upload_with_validation(
     df: pd.DataFrame,
     model_class: type[SQLModel],
@@ -153,18 +178,28 @@ def chunked_upload_with_validation(
         validated_chunk.to_sql(
             table_name, engine, if_exists="append", index=False, method="multi"
         )
-    print(f"Uploaded {total_chunks} chunk(s) to {table_name}.")
+    logger.info(
+        "Chunks uploaded",
+        extra={
+            "event": "database.chunks_uploaded",
+            "chunk_count": total_chunks,
+            "table": table_name,
+        },
+    )
 
 
+@timed("bootstrap.reset_database")
 def reset_database(engine_url: str = DEFAULT_ENGINE_URL) -> None:
-    """Drop local source tables so the database can be seeded from scratch."""
+    """Drop source and workflow-output tables so the database can be rebuilt."""
     engine = create_engine(engine_url)
-    # Remove the legacy event table before dropping its referenced dimensions.
     with engine.begin() as connection:
         connection.execute(text("DROP TABLE IF EXISTS log_problem CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS processed_log CASCADE"))
+        connection.execute(text("DROP TABLE IF EXISTS feature_snapshot CASCADE"))
     SQLModel.metadata.drop_all(engine)
 
 
+@timed("bootstrap.seed_database")
 def seed_database_from_raw_files(engine_url: str = DEFAULT_ENGINE_URL) -> None:
     """Load raw local artifacts and seed the PostgreSQL tables used by the workflows."""
     engine = create_engine(engine_url)

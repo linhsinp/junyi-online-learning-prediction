@@ -46,7 +46,9 @@ def test_seed_database_exports_expected_sqlmodel_types():
     assert UserProfile.__tablename__ == "user_profile"
 
 
-def test_reset_database_removes_legacy_event_table_before_dimensions(monkeypatch):
+def test_reset_database_removes_source_and_workflow_tables_before_dimensions(
+    monkeypatch,
+):
     statements: list[str] = []
     dropped_engines: list[object] = []
 
@@ -75,5 +77,9 @@ def test_reset_database_removes_legacy_event_table_before_dimensions(monkeypatch
 
     reset_database("postgresql://example")
 
-    assert statements == ["DROP TABLE IF EXISTS log_problem CASCADE"]
+    assert statements == [
+        "DROP TABLE IF EXISTS log_problem CASCADE",
+        "DROP TABLE IF EXISTS processed_log CASCADE",
+        "DROP TABLE IF EXISTS feature_snapshot CASCADE",
+    ]
     assert dropped_engines == [engine]

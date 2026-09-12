@@ -47,7 +47,7 @@ flowchart LR
   `ModelRegistration` models provide durable typed contracts between stages.
 - Flyte task boundaries exchange JSON-compatible model dumps; each receiving
   task validates its payload before loading run-scoped artifacts.
-- Model bundles are immutable under `models/<run-id>/`; `models/approved.json`
+- Model bundles are immutable under `models/<training-run-id>/`; `models/approved.json`
   points to the selected model.
 - Training uses chronological partitions and fits transformations only on
   training data.

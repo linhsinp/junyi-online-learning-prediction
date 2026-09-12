@@ -11,6 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from junyi_predictor.paths import CURATED_LOG_DIR, LOG_FILE
+from junyi_predictor.progress import timed
 
 LOG_DTYPES = {
     "uuid": "string",
@@ -41,6 +42,7 @@ def _partitioned_log_chunks(
             yield (int(year), int(month)), partition.drop(columns=["year", "month"])
 
 
+@timed("bootstrap.materialize_parquet")
 def materialize_log_parquet(
     source: Path = LOG_FILE,
     destination: Path = CURATED_LOG_DIR,

@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.tree import DecisionTreeClassifier
 
@@ -16,7 +17,7 @@ def test_register_model_writes_immutable_bundle_and_approved_pointer(tmp_path: P
 
     registration = register_model(
         store=store,
-        run_id="run-1",
+        training_run_id="run-1",
         model_type="DecisionTreeClassifier",
         model=model,
         scaler=scaler,
@@ -29,3 +30,20 @@ def test_register_model_writes_immutable_bundle_and_approved_pointer(tmp_path: P
     assert (tmp_path / "models" / "approved.json").exists()
     manifest = json.loads((tmp_path / "models" / "run-1" / "manifest.json").read_text())
     assert manifest["manifest_uri"] == registration.manifest_uri
+
+
+def test_register_model_rejects_existing_training_run(tmp_path: Path):
+    model = DecisionTreeClassifier(random_state=0).fit([[0], [1]], [0, 1])
+    scaler = MinMaxScaler().fit(np.array([[0.0], [1.0]]))
+    store = LocalArtifactStore(tmp_path)
+    kwargs = dict(
+        store=store,
+        training_run_id="run-1",
+        model_type="DecisionTreeClassifier",
+        model=model,
+        scaler=scaler,
+        metrics={"DecisionTreeClassifier": {"train_score": 1.0, "test_score": 0.9}},
+    )
+    register_model(**kwargs)
+    with pytest.raises(ValueError, match="training_run_id"):
+        register_model(**kwargs)

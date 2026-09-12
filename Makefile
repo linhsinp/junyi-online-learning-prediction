@@ -60,12 +60,15 @@ seed-local:
 
 flyte-training-local:
 	@set -a; [ -f .env ] && . ./.env; set +a; \
+	JUNYI_LOG_FORMAT="$${JUNYI_LOG_FORMAT:-text}" JUNYI_LOG_DIR="$${JUNYI_LOG_DIR:-artifacts/logs}" \
 	ARTIFACT_BACKEND=local ARTIFACT_ROOT=artifacts/runs \
 	PYTHONPATH=src $(UV) run flyte run --local src/junyi_predictor/workflows/training.py training_pipeline \
 		--start_date "$(START_DATE)" --end_date "$(END_DATE)"
 
 flyte-training-local-tui:
 	@set -a; [ -f .env ] && . ./.env; set +a; \
+	printf 'Application logs: %s (follow *.jsonl in another terminal)\n' "$${JUNYI_LOG_DIR:-artifacts/logs}"; \
+	JUNYI_LOG_CONSOLE=0 JUNYI_LOG_DIR="$${JUNYI_LOG_DIR:-artifacts/logs}" \
 	ARTIFACT_BACKEND=local ARTIFACT_ROOT=artifacts/runs \
 	PYTHONPATH=src $(UV) run flyte run --local --tui src/junyi_predictor/workflows/training.py training_pipeline \
 		--start_date "$(START_DATE)" --end_date "$(END_DATE)"
