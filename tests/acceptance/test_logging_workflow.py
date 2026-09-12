@@ -59,7 +59,7 @@ def test_local_flyte_progress_and_terminal_outcomes(tmp_path, mode):
         "2019-06-01T00:00:00",
         "--end_date",
         "2019-06-10T00:00:00",
-        "--run_id",
+        "--training_run_id",
         f"logging-{mode}-{tmp_path.name}",
     ]
     with output_path.open("w") as output:
@@ -128,7 +128,7 @@ def test_local_flyte_progress_and_terminal_outcomes(tmp_path, mode):
         assert (
             len(
                 {
-                    e["invocation_id"]
+                    e["flyte_action_id"]
                     for e in events
                     if e["event"] == "execution.started"
                 }
@@ -145,7 +145,6 @@ def test_local_flyte_progress_and_terminal_outcomes(tmp_path, mode):
             if e["event"] == "execution.failed" and e["stage"] == "preprocessing"
         ]
         assert failures and all(e["operation"] == "input.fixture" for e in failures)
-        assert len({e["invocation_id"] for e in failures}) == len(failures)
         assert not any(e["event"] == "registration.approved" for e in events)
     else:
         assert code != 0

@@ -9,7 +9,9 @@ def test_local_artifact_store_persists_files_and_json(tmp_path: Path):
     source.write_text("feature-data")
 
     uri = store.put_file(source, "runs/run-1/features.txt")
-    manifest_uri = store.put_json({"run_id": "run-1"}, "runs/run-1/manifest.json")
+    manifest_uri = store.put_json(
+        {"training_run_id": "run-1"}, "runs/run-1/manifest.json"
+    )
     downloaded = store.get_file("runs/run-1/features.txt", tmp_path / "download.txt")
 
     assert Path(uri).read_text() == "feature-data"

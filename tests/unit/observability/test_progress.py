@@ -19,7 +19,7 @@ from junyi_predictor.progress import (
 def test_nested_failure_keeps_innermost_operation_and_original_exception(records):
     error = RuntimeError("original")
     with pytest.raises(RuntimeError) as caught:
-        with execution("features", run_id="run-1"):
+        with execution("features", training_run_id="run-1"):
             with operation("outer", heartbeat=False):
                 with operation("inner", heartbeat=False, model_type="example"):
                     raise error
@@ -54,13 +54,13 @@ def test_heartbeat_while_blocked_has_context_and_stops(records, monkeypatch):
         emitted.set()
 
     monkeypatch.setattr(Progress, "report", report)
-    with execution("training", run_id="heartbeat-run"):
+    with execution("training", training_run_id="heartbeat-run"):
         with operation("model.fit", model_type="tree") as progress:
             progress.update(completed_rows=1000, total_rows=3000)
             assert emitted.wait(2), "reporter did not run while main thread was blocked"
     events = records()
     heartbeat = next(r for r in events if r["event"] == "operation.running")
-    assert heartbeat["run_id"] == "heartbeat-run"
+    assert heartbeat["training_run_id"] == "heartbeat-run"
     assert heartbeat["model_type"] == "tree" and heartbeat["completed_rows"] == 1000
     assert events[-1]["event"] == "execution.completed"
     assert not any(t.name == "junyi-progress" for t in threading.enumerate())
@@ -119,7 +119,7 @@ def test_configuration_failure_is_observable(setting, value, monkeypatch, capsys
     assert "execution.failed" in capsys.readouterr().err
 
 
-def test_task_invocations_have_distinct_ids_and_flyte_context(records, monkeypatch):
+def test_task_invocations_include_flyte_context(records, monkeypatch):
     monkeypatch.setattr(
         "flyte.ctx",
         lambda: SimpleNamespace(
@@ -131,17 +131,17 @@ def test_task_invocations_have_distinct_ids_and_flyte_context(records, monkeypat
     async def task(payload: dict) -> dict:
         return payload
 
-    payload = {"run_id": "same-run"}
+    payload = {"training_run_id": "same-run"}
     assert asyncio.run(task(payload)) == payload
     assert asyncio.run(task(payload)) == payload
     events = [r for r in records() if r["event"] == "execution.started"]
-    assert events[0]["invocation_id"] != events[1]["invocation_id"]
     assert all(
-        r["flyte_action_id"] == "a1" and r["run_id"] == "same-run" for r in events
+        r["flyte_action_id"] == "a1" and r["training_run_id"] == "same-run"
+        for r in events
     )
 
 
-def test_pipeline_assigns_run_id_and_only_summarizes_child_failure(
+def test_pipeline_assigns_training_run_id_and_only_summarizes_child_failure(
     records, monkeypatch
 ):
     monkeypatch.setattr("flyte.ctx", lambda: None)
@@ -151,16 +151,16 @@ def test_pipeline_assigns_run_id_and_only_summarizes_child_failure(
         raise ValueError("failed")
 
     @task_logging("pipeline")
-    async def parent(run_id: str = "") -> dict:
-        assert run_id
+    async def parent(training_run_id: str = "") -> dict:
+        assert training_run_id
         with operation("pipeline.features", heartbeat=False):
-            return await child({"run_id": run_id})
+            return await child({"training_run_id": training_run_id})
 
     with pytest.raises(ValueError):
         asyncio.run(parent())
     failures = [r for r in records() if r["event"] == "execution.failed"]
     assert len(failures) == 2 and sum("exception" in r for r in failures) == 1
-    assert failures[0]["run_id"] == failures[1]["run_id"]
+    assert failures[0]["training_run_id"] == failures[1]["training_run_id"]
 
 
 def test_invalid_payload_does_not_log_inputs(records, monkeypatch):
@@ -170,8 +170,8 @@ def test_invalid_payload_does_not_log_inputs(records, monkeypatch):
     async def task(payload: dict) -> dict:
         return {}
 
-    asyncio.run(task({"run_id": ["learner-secret"]}))
-    assert all(r["run_id"] is None for r in records())
+    asyncio.run(task({"training_run_id": ["learner-secret"]}))
+    assert all(r["training_run_id"] is None for r in records())
     assert "learner-secret" not in str(records())
 
 

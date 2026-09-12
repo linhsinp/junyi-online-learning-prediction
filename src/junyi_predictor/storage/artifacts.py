@@ -21,6 +21,8 @@ class ArtifactStore(Protocol):
 
     def put_json(self, payload: dict, key: str) -> str: ...
 
+    def exists(self, key: str) -> bool: ...
+
 
 class LocalArtifactStore:
     """Filesystem-backed artifacts used by tests and Flyte local mode."""
@@ -48,6 +50,10 @@ class LocalArtifactStore:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(json.dumps(payload, indent=2, sort_keys=True))
         return str(destination)
+
+    @timed("artifact.exists", fields=("key",), heartbeat=False)
+    def exists(self, key: str) -> bool:
+        return (self.root / key).exists()
 
 
 class GcsArtifactStore:
@@ -80,6 +86,10 @@ class GcsArtifactStore:
             content_type="application/json",
         )
         return f"gs://{self.bucket.name}/{blob_key}"
+
+    @timed("artifact.exists", fields=("key",), heartbeat=False)
+    def exists(self, key: str) -> bool:
+        return self.bucket.blob(self._key(key)).exists()
 
 
 def create_artifact_store(

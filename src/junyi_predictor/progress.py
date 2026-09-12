@@ -190,7 +190,7 @@ def execution(
     stage: str,
     *,
     service: str = "junyi-training",
-    run_id: str | None = None,
+    training_run_id: str | None = None,
     summary_only: bool = False,
     **fields: Any,
 ) -> Iterator[None]:
@@ -203,7 +203,10 @@ def execution(
     started = time.monotonic()
     token = _failure.set({})
     with bind_context(
-        service=service, stage=stage, run_id=run_id, invocation_id=uuid4().hex, **fields
+        service=service,
+        stage=stage,
+        training_run_id=training_run_id,
+        **fields,
     ):
         try:
             options = LoggingOptions(
@@ -278,17 +281,17 @@ def task_logging(
             payload = next(
                 (v for v in arguments.arguments.values() if isinstance(v, dict)), {}
             )
-            run_id = payload.get("run_id")
+            training_run_id = payload.get("training_run_id", payload.get("run_id"))
             if stage == "pipeline":
-                run_id = (
-                    arguments.arguments.get("run_id")
+                training_run_id = (
+                    arguments.arguments.get("training_run_id")
                     or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
                     + "-"
                     + uuid4().hex[:8]
                 )
-                arguments.arguments["run_id"] = run_id
-            if not isinstance(run_id, str):
-                run_id = None
+                arguments.arguments["training_run_id"] = training_run_id
+            if not isinstance(training_run_id, str):
+                training_run_id = None
             context = flyte.ctx()
             identifiers = {}
             if context is not None:
@@ -298,7 +301,10 @@ def task_logging(
                     "flyte_action_id": action.name,
                 }
             with execution(
-                stage, run_id=run_id, summary_only=stage == "pipeline", **identifiers
+                stage,
+                training_run_id=training_run_id,
+                summary_only=stage == "pipeline",
+                **identifiers,
             ):
                 return await function(*arguments.args, **arguments.kwargs)
 

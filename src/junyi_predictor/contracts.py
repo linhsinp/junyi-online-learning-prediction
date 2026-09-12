@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class PipelineRun(BaseModel):
@@ -12,7 +12,10 @@ class PipelineRun(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    run_id: str = Field(min_length=1)
+    training_run_id: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("training_run_id", "run_id"),
+    )
     start_date: datetime
     end_date: datetime
 
@@ -22,7 +25,10 @@ class PreprocessedSnapshot(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    run_id: str = Field(min_length=1)
+    training_run_id: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("training_run_id", "run_id"),
+    )
     log_uri: str = Field(min_length=1)
     user_uri: str = Field(min_length=1)
     content_uri: str = Field(min_length=1)
@@ -35,7 +41,10 @@ class FeatureSnapshot(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    run_id: str = Field(min_length=1)
+    training_run_id: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("training_run_id", "run_id"),
+    )
     log_uri: str = Field(min_length=1)
     concept_matrix_uri: str = Field(min_length=1)
     level4_matrix_uri: str = Field(min_length=1)
@@ -48,7 +57,10 @@ class ModelRegistration(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    run_id: str = Field(min_length=1)
+    training_run_id: str = Field(
+        min_length=1,
+        validation_alias=AliasChoices("training_run_id", "run_id"),
+    )
     model_version: str = Field(min_length=1)
     model_uri: str = Field(min_length=1)
     scaler_uri: str = Field(min_length=1)

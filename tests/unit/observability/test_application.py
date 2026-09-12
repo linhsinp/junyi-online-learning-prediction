@@ -154,7 +154,7 @@ def test_snapshot_loading_preserves_local_and_remote_paths(
     monkeypatch.setattr(training, "_store_from_settings", lambda: store)
     if stage == "preprocessed":
         snapshot = PreprocessedSnapshot(
-            run_id="r1",
+            training_run_id="r1",
             log_uri="log.parquet",
             user_uri="user.parquet",
             content_uri="content.parquet",
@@ -165,7 +165,7 @@ def test_snapshot_loading_preserves_local_and_remote_paths(
         keys = [f"runs/r1/preprocessed/{name}" for name in names]
     else:
         snapshot = FeatureSnapshot(
-            run_id="r1",
+            training_run_id="r1",
             log_uri="log.parquet",
             concept_matrix_uri="concept.npy",
             level4_matrix_uri="level4.npy",

@@ -23,9 +23,9 @@ tail -F artifacts/logs/junyi-<process>-<identifier>.jsonl
 ```
 
 Use the actual filename printed at startup. Multiple runs can write separate
-files simultaneously; filter records by `run_id`. Each task execution has a
-fresh `invocation_id`, including retries, and Flyte run/action identifiers are
-included when the SDK provides them. A process can host several tasks or runs.
+files simultaneously; filter records by `training_run_id`. Flyte run/action
+identifiers are included when the SDK provides them. A process can host several
+tasks or runs.
 
 `make flyte-training-local-tui` prints the log directory before launching the
 TUI and disables application console output. Follow the newly created JSONL
@@ -72,12 +72,12 @@ when registering a different remote policy; these are distinct from Flyte's
 An abbreviated pair of events looks like:
 
 ```json
-{"event":"operation.started","service":"junyi-training","run_id":"example","stage":"training","operation":"model.fit","model_type":"GradientBoostingClassifier"}
-{"event":"operation.running","service":"junyi-training","run_id":"example","stage":"training","operation":"model.fit","elapsed_seconds":60.0}
+{"event":"operation.started","service":"junyi-training","training_run_id":"example","stage":"training","operation":"model.fit","model_type":"GradientBoostingClassifier"}
+{"event":"operation.running","service":"junyi-training","training_run_id":"example","stage":"training","operation":"model.fit","elapsed_seconds":60.0}
 ```
 
-Actual records also include UTC timestamp, severity, logger, message, invocation
-ID, and available Flyte identifiers. The innermost active operation reports
+Actual records also include UTC timestamp, severity, logger, message, and
+available Flyte identifiers. The innermost active operation reports
 heartbeats; enclosing operations are suspended to avoid duplicate progress.
 A heartbeat means the reporting thread is alive and the operation has not
 returned. It does not prove work is advancing. A native call holding the GIL,

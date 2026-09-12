@@ -65,8 +65,8 @@ def _store_from_settings():
     )
 
 
-def _feature_keys(run_id: str) -> tuple[str, str, str]:
-    prefix = f"runs/{run_id}/features"
+def _feature_keys(training_run_id: str) -> tuple[str, str, str]:
+    prefix = f"runs/{training_run_id}/features"
     return (
         f"{prefix}/log.parquet",
         f"{prefix}/concept_proficiency.npy",
@@ -74,8 +74,8 @@ def _feature_keys(run_id: str) -> tuple[str, str, str]:
     )
 
 
-def _preprocessed_keys(run_id: str) -> tuple[str, str, str]:
-    prefix = f"runs/{run_id}/preprocessed"
+def _preprocessed_keys(training_run_id: str) -> tuple[str, str, str]:
+    prefix = f"runs/{training_run_id}/preprocessed"
     return (
         f"{prefix}/log.parquet",
         f"{prefix}/user.parquet",
@@ -90,6 +90,12 @@ async def materialize_preprocessed(
 ) -> dict:
     """Load and persist a durable preprocessing result."""
     run = PipelineRun.model_validate(run_payload)
+    store = _store_from_settings()
+    snapshot_key = f"runs/{run.training_run_id}/preprocessed_snapshot.json"
+    if store.exists(snapshot_key):
+        raise ValueError(
+            f"training_run_id already has a preprocessed snapshot: {run.training_run_id}"
+        )
     settings = Settings.from_environment()
     engine = create_engine(settings.database_url)
     df_log, df_user, df_content = load_data_for_training(
@@ -102,11 +108,10 @@ async def materialize_preprocessed(
         table="processed_log",
         row_count=len(preprocessed.log),
     ):
-        preprocessed.log.assign(pipeline_run_id=run.run_id).to_sql(
+        preprocessed.log.assign(training_run_id=run.training_run_id).to_sql(
             "processed_log", engine, if_exists="append", index=False
         )
-    store = _store_from_settings()
-    log_key, user_key, content_key = _preprocessed_keys(run.run_id)
+    log_key, user_key, content_key = _preprocessed_keys(run.training_run_id)
     with tempfile.TemporaryDirectory(prefix="junyi-preprocessed-") as temp_dir:
         root = Path(temp_dir)
         log_path = root / "log.parquet"
@@ -117,7 +122,7 @@ async def materialize_preprocessed(
             preprocessed.user.to_parquet(user_path, index=False)
             preprocessed.content.to_parquet(content_path, index=False)
         snapshot = PreprocessedSnapshot(
-            run_id=run.run_id,
+            training_run_id=run.training_run_id,
             log_uri=store.put_file(log_path, log_key),
             user_uri=store.put_file(user_path, user_key),
             content_uri=store.put_file(content_path, content_key),
@@ -125,7 +130,7 @@ async def materialize_preprocessed(
         )
     store.put_json(
         snapshot.model_dump(mode="json"),
-        f"runs/{run.run_id}/preprocessed_snapshot.json",
+        snapshot_key,
     )
     return snapshot.model_dump(mode="json")
 
@@ -143,7 +148,7 @@ def _load_preprocessed_files(
         )
     store = _store_from_settings()
     root = Path(tempfile.mkdtemp(prefix="junyi-features-"))
-    log_key, user_key, content_key = _preprocessed_keys(snapshot.run_id)
+    log_key, user_key, content_key = _preprocessed_keys(snapshot.training_run_id)
     return (
         store.get_file(log_key, root / "log.parquet"),
         store.get_file(user_key, root / "user.parquet"),
@@ -173,11 +178,11 @@ async def materialize_feature_snapshot(preprocessed_payload: dict) -> dict:
         table="feature_snapshot",
         row_count=len(featured.log),
     ):
-        featured.log.assign(pipeline_run_id=snapshot.run_id).to_sql(
+        featured.log.assign(training_run_id=snapshot.training_run_id).to_sql(
             "feature_snapshot", engine, if_exists="append", index=False
         )
     store = _store_from_settings()
-    log_key, concept_key, level4_key = _feature_keys(snapshot.run_id)
+    log_key, concept_key, level4_key = _feature_keys(snapshot.training_run_id)
     with tempfile.TemporaryDirectory(prefix="junyi-features-") as temp_dir:
         root = Path(temp_dir)
         log_file = root / "log.parquet"
@@ -188,7 +193,7 @@ async def materialize_feature_snapshot(preprocessed_payload: dict) -> dict:
             np.save(concept_file, featured.concept_proficiency)
             np.save(level4_file, featured.level4_proficiency)
         feature_snapshot = FeatureSnapshot(
-            run_id=snapshot.run_id,
+            training_run_id=snapshot.training_run_id,
             log_uri=store.put_file(log_file, log_key),
             concept_matrix_uri=store.put_file(concept_file, concept_key),
             level4_matrix_uri=store.put_file(level4_file, level4_key),
@@ -196,7 +201,7 @@ async def materialize_feature_snapshot(preprocessed_payload: dict) -> dict:
         )
     store.put_json(
         feature_snapshot.model_dump(mode="json"),
-        f"runs/{snapshot.run_id}/feature_snapshot.json",
+        f"runs/{snapshot.training_run_id}/feature_snapshot.json",
     )
     return feature_snapshot.model_dump(mode="json")
 
@@ -212,7 +217,7 @@ def _load_snapshot_files(snapshot: FeatureSnapshot) -> tuple[Path, Path, Path]:
         )
     store = _store_from_settings()
     root = Path(tempfile.mkdtemp(prefix="junyi-training-"))
-    log_key, concept_key, level4_key = _feature_keys(snapshot.run_id)
+    log_key, concept_key, level4_key = _feature_keys(snapshot.training_run_id)
     return (
         store.get_file(log_key, root / "log.parquet"),
         store.get_file(concept_key, root / "concept.npy"),
@@ -262,7 +267,7 @@ async def train_register(snapshot_payload: dict) -> dict:
     winner = max(metrics, key=lambda model_type: metrics[model_type]["test_score"])
     registration = register_model(
         store=_store_from_settings(),
-        run_id=snapshot.run_id,
+        training_run_id=snapshot.training_run_id,
         model_type=winner,
         model=models[winner],
         scaler=scaler,
@@ -282,16 +287,17 @@ async def train_register(snapshot_payload: dict) -> dict:
 async def training_pipeline(
     start_date: datetime | None = None,
     end_date: datetime | None = None,
-    run_id: str = "",
+    training_run_id: str = "",
 ) -> dict:
     """Compose the remotely executable preprocessing and training tasks."""
     resolved_end_date = end_date or datetime.utcnow()
     resolved_start_date = start_date or resolved_end_date - timedelta(days=7)
-    resolved_run_id = (
-        run_id or datetime.utcnow().strftime("%Y%m%dT%H%M%S") + "-" + uuid4().hex[:8]
+    resolved_training_run_id = (
+        training_run_id
+        or datetime.utcnow().strftime("%Y%m%dT%H%M%S") + "-" + uuid4().hex[:8]
     )
     pipeline_run = PipelineRun(
-        run_id=resolved_run_id,
+        training_run_id=resolved_training_run_id,
         start_date=resolved_start_date,
         end_date=resolved_end_date,
     )

@@ -30,7 +30,7 @@ def test_json_fields_and_configuration_are_idempotent(tmp_path, capsys):
     flyte_handlers = logging.getLogger("flyte").handlers[:]
     path = configure_logging(options)
     assert configure_logging(options) == path
-    with bind_context(run_id="run-1", stage="features"):
+    with bind_context(training_run_id="run-1", stage="features"):
         logging.getLogger("junyi_test.features").info(
             "Building",
             extra={"event": "features.started", "row_count": 12, "shape": (12, 2)},
@@ -46,7 +46,7 @@ def test_json_fields_and_configuration_are_idempotent(tmp_path, capsys):
         "logger": "junyi_test.features",
         "event": "features.started",
         "message": "Building",
-        "run_id": "run-1",
+        "training_run_id": "run-1",
         "stage": "features",
         "row_count": 12,
         "shape": [12, 2],
@@ -77,8 +77,8 @@ def test_text_console_json_file_and_level(tmp_path, capsys):
 
 
 def test_context_restores_after_errors_and_isolates_coroutines():
-    async def worker(run_id):
-        with bind_context(run_id=run_id):
+    async def worker(training_run_id):
+        with bind_context(training_run_id=training_run_id):
             await asyncio.sleep(0)
             with pytest.raises(RuntimeError), bind_context(stage="nested"):
                 raise RuntimeError("test")
@@ -87,7 +87,10 @@ def test_context_restores_after_errors_and_isolates_coroutines():
     async def run():
         return await asyncio.gather(worker("first"), worker("second"))
 
-    assert asyncio.run(run()) == [{"run_id": "first"}, {"run_id": "second"}]
+    assert asyncio.run(run()) == [
+        {"training_run_id": "first"},
+        {"training_run_id": "second"},
+    ]
     assert current_context() == {}
 
 
