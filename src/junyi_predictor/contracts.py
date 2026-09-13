@@ -56,3 +56,4 @@ class ModelRegistration(BaseModel):
     manifest_uri: str
     model_type: str = Field(min_length=1)
     test_score: float
+    training_metadata_uri: str | None = None

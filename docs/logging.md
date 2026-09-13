@@ -27,6 +27,16 @@ files simultaneously; filter records by `training_run_id`. Flyte run/action
 identifiers are included when the SDK provides them. A process can host several
 tasks or runs.
 
+For `make flyte-train-from-features-local FEATURE_SNAPSHOT_KEY=...`, the log's
+`training_run_id` identifies the new experiment. The `training.inputs` event
+separately records `source_training_run_id`, `feature_snapshot_key`, requested
+date bounds, selected row count, and actual partition counts. `training.selected`
+reports validation-based candidate selection; `model.test` reports the selected
+candidate's held-out score. Standalone success produces `registration.manifest`
+without `registration.approved`, because experiments do not promote models.
+Both entrypoints persist dataset fingerprints and split details in
+`training_metadata.json`; see [the runbook](training-from-features.md).
+
 `make flyte-training-local-tui` prints the log directory before launching the
 TUI and disables application console output. Follow the newly created JSONL
 file in a second terminal. Flyte retains ownership of its own display/logging.

@@ -5,7 +5,9 @@ from junyi_predictor.workflows.training import (
     pipeline_env,
     preprocess_env,
     train_env,
+    train_from_features,
     train_register,
+    training_only_env,
     training_pipeline,
 )
 
@@ -22,3 +24,5 @@ def test_training_workflow_exposes_separate_task_environments():
         == "junyi-features.materialize_feature_snapshot"
     )
     assert train_register.name == "junyi-training.train_register"
+    assert train_from_features.name == "junyi-training-only.train_from_features"
+    assert training_only_env.depends_on == [train_env]

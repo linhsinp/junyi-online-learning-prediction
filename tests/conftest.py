@@ -225,3 +225,46 @@ def mock_stage_frames() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     df_user = pd.DataFrame({"value": [1, 2]})
     df_content = pd.DataFrame({"value": [1]})
     return df_log, df_user, df_content
+
+
+@pytest.fixture
+def experiment_frames():
+    """Twenty identifiable chronological rows with matching feature matrices."""
+    from junyi_predictor.pipeline.experiments import SCALAR_COLUMNS
+
+    frame = pd.DataFrame({name: np.arange(20) for name in SCALAR_COLUMNS})
+    frame["timestamp_TW"] = pd.date_range("2024-01-01", periods=20, tz="UTC")
+    frame["is_correct"] = [False, True] * 10
+    concept = np.arange(20, dtype=np.float16)[:, None]
+    level4 = (np.arange(20, dtype=np.float16) + 100)[:, None]
+    return frame, concept, level4
+
+
+@pytest.fixture
+def published_feature_snapshot(tmp_path, experiment_frames):
+    """A retained v1 publication using the existing producer artifact layout."""
+    from junyi_predictor.contracts import FeatureSnapshot
+    from junyi_predictor.storage.artifacts import LocalArtifactStore
+
+    frame, concept, level4 = experiment_frames
+    store = LocalArtifactStore(tmp_path / "artifacts")
+    prefix = "runs/source-run/features"
+    source = tmp_path / "source"
+    source.mkdir()
+    frame.to_parquet(source / "log.parquet", index=False)
+    np.save(source / "concept.npy", concept)
+    np.save(source / "level4.npy", level4)
+    snapshot = FeatureSnapshot(
+        training_run_id="source-run",
+        row_count=len(frame),
+        log_uri=store.put_file(source / "log.parquet", f"{prefix}/log.parquet"),
+        concept_matrix_uri=store.put_file(
+            source / "concept.npy", f"{prefix}/concept_proficiency.npy"
+        ),
+        level4_matrix_uri=store.put_file(
+            source / "level4.npy", f"{prefix}/level4_proficiency.npy"
+        ),
+    )
+    key = "runs/source-run/feature_snapshot.json"
+    store.put_json(snapshot.model_dump(mode="json"), key)
+    return store, key

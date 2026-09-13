@@ -13,20 +13,14 @@ import numpy as np
 from sqlalchemy import create_engine
 
 from junyi_predictor.contracts import FeatureSnapshot, PipelineRun, PreprocessedSnapshot
-from junyi_predictor.pipeline.constants import MODEL_TYPES
+from junyi_predictor.pipeline.experiments import train_snapshot
 from junyi_predictor.pipeline.feature_engineering import build_feature_stage
 from junyi_predictor.pipeline.preprocessing import (
     load_data_for_training,
     preprocess_stage,
 )
-from junyi_predictor.pipeline.training import (
-    fit_min_max_scaler,
-    fit_model,
-    split_training_data,
-)
 from junyi_predictor.progress import operation, remote_logging_env, task_logging, timed
-from junyi_predictor.registry import register_model
-from junyi_predictor.settings import Settings
+from junyi_predictor.settings import ArtifactSettings, Settings
 from junyi_predictor.storage.artifacts import create_artifact_store
 
 logger = logging.getLogger(__name__)
@@ -56,10 +50,17 @@ pipeline_env = flyte.TaskEnvironment(
     depends_on=[preprocess_env, feature_env, train_env],
     env_vars=remote_logging_env(),
 )
+training_only_env = flyte.TaskEnvironment(
+    name="junyi-training-only",
+    image="auto",
+    resources=flyte.Resources(memory="1Gi"),
+    depends_on=[train_env],
+    env_vars=remote_logging_env(),
+)
 
 
 def _store_from_settings():
-    settings = Settings.from_environment()
+    settings = ArtifactSettings.from_environment()
     return create_artifact_store(
         settings.artifact_backend, settings.artifact_root, settings.gcs_bucket
     )
@@ -206,74 +207,68 @@ async def materialize_feature_snapshot(preprocessed_payload: dict) -> dict:
     return feature_snapshot.model_dump(mode="json")
 
 
-@timed("features.download")
-def _load_snapshot_files(snapshot: FeatureSnapshot) -> tuple[Path, Path, Path]:
-    settings = Settings.from_environment()
-    if settings.artifact_backend == "local":
-        return (
-            Path(snapshot.log_uri),
-            Path(snapshot.concept_matrix_uri),
-            Path(snapshot.level4_matrix_uri),
-        )
-    store = _store_from_settings()
-    root = Path(tempfile.mkdtemp(prefix="junyi-training-"))
-    log_key, concept_key, level4_key = _feature_keys(snapshot.training_run_id)
-    return (
-        store.get_file(log_key, root / "log.parquet"),
-        store.get_file(concept_key, root / "concept.npy"),
-        store.get_file(level4_key, root / "level4.npy"),
+@train_env.task(retries=1)
+@task_logging("training")
+async def train_register(
+    snapshot_payload: dict,
+    train_fraction: float = 0.70,
+    validation_fraction: float = 0.15,
+) -> dict:
+    """Train the combined workflow's published snapshot and promote its winner."""
+    snapshot = FeatureSnapshot.model_validate(snapshot_payload)
+    registration = train_snapshot(
+        _store_from_settings(),
+        f"runs/{snapshot.training_run_id}/feature_snapshot.json",
+        snapshot.training_run_id,
+        train_fraction=train_fraction,
+        validation_fraction=validation_fraction,
+        promote=True,
     )
+    return registration.model_dump(mode="json")
 
 
 @train_env.task(retries=1)
 @task_logging("training")
-async def train_register(snapshot_payload: dict) -> dict:
-    """Evaluate candidates, register the winner, and update approved-model metadata."""
-    snapshot = FeatureSnapshot.model_validate(snapshot_payload)
-    log_path, concept_path, level4_path = _load_snapshot_files(snapshot)
-    import pandas as pd
-
-    with operation("training.load", log=logger):
-        df_log = pd.read_parquet(log_path)
-        concept = np.load(concept_path)
-        level4 = np.load(level4_path)
-    with operation("training.split", log=logger):
-        split = split_training_data(
-            df_log=df_log, m_concept_proficiency=concept, m_proficiency_level4=level4
-        )
-    del concept, level4
-    with operation(
-        "training.scale",
-        log=logger,
-        train_shape=split.X_train.shape,
-        test_shape=split.X_test.shape,
-        dtype=str(split.X_train.dtype),
-    ):
-        scaler = fit_min_max_scaler(split.X_train)
-        X_train = scaler.transform(split.X_train)
-        X_test = scaler.transform(split.X_test)
-    models = {}
-    for model_type in MODEL_TYPES:
-        with operation("model.fit", log=logger, model_type=model_type):
-            models[model_type] = fit_model(X_train, split.y_train, model_type)
-    metrics = {}
-    for model_type, model in models.items():
-        with operation("model.evaluate", log=logger, model_type=model_type) as progress:
-            metrics[model_type] = {
-                "train_score": float(model.score(X_train, split.y_train)),
-                "test_score": float(model.score(X_test, split.y_test)),
-            }
-            progress.update(**metrics[model_type])
-    winner = max(metrics, key=lambda model_type: metrics[model_type]["test_score"])
-    registration = register_model(
-        store=_store_from_settings(),
-        training_run_id=snapshot.training_run_id,
-        model_type=winner,
-        model=models[winner],
-        scaler=scaler,
-        metrics=metrics,
+async def train_feature_experiment(
+    training_run_id: str,
+    feature_snapshot_key: str,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    train_fraction: float = 0.70,
+    validation_fraction: float = 0.15,
+) -> dict:
+    """Register an independent experiment without promoting it."""
+    registration = train_snapshot(
+        _store_from_settings(),
+        feature_snapshot_key,
+        training_run_id,
+        start_date=start_date,
+        end_date=end_date,
+        train_fraction=train_fraction,
+        validation_fraction=validation_fraction,
     )
     return registration.model_dump(mode="json")
+
+
+@training_only_env.task
+@task_logging("pipeline")
+async def train_from_features(
+    feature_snapshot_key: str,
+    training_run_id: str = "",
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
+    train_fraction: float = 0.70,
+    validation_fraction: float = 0.15,
+) -> dict:
+    """Select a retained feature snapshot and train without upstream execution."""
+    return await train_feature_experiment(
+        training_run_id,
+        feature_snapshot_key,
+        start_date,
+        end_date,
+        train_fraction,
+        validation_fraction,
+    )
 
 
 @pipeline_env.task(
@@ -288,6 +283,8 @@ async def training_pipeline(
     start_date: datetime | None = None,
     end_date: datetime | None = None,
     training_run_id: str = "",
+    train_fraction: float = 0.70,
+    validation_fraction: float = 0.15,
 ) -> dict:
     """Compose the remotely executable preprocessing and training tasks."""
     resolved_end_date = end_date or datetime.utcnow()
@@ -316,4 +313,6 @@ async def training_pipeline(
     with operation("pipeline.features", log=logger, heartbeat=False):
         feature_snapshot = await materialize_feature_snapshot(preprocessed)
     with operation("pipeline.training", log=logger, heartbeat=False):
-        return await train_register(feature_snapshot)
+        return await train_register(
+            feature_snapshot, train_fraction, validation_fraction
+        )

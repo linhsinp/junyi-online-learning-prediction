@@ -46,6 +46,14 @@ the run, task invocation, and active operation where available.
 See [logging and progress diagnostics](docs/logging.md) for configuration,
 following a live run, and interpreting failures or interruptions.
 
+To repeat training without rebuilding features, use
+`make flyte-train-from-features-local FEATURE_SNAPSHOT_KEY=runs/<source-run-id>/feature_snapshot.json`.
+This selects all rows in that snapshot before a configurable chronological
+70/15/15 train-validation-test split, needs no database, and registers the
+experiment without changing the approved model. See
+[training from existing features](docs/training-from-features.md) for date
+filters, artifact configuration, and compatibility details.
+
 Use `make reset-local` before reseeding an existing local database. It drops
 the local source tables and their contents before they are recreated by
 `make seed-local`.

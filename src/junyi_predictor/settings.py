@@ -8,6 +8,23 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
+class ArtifactSettings:
+    """Artifact-only configuration for training without a database connection."""
+
+    artifact_backend: str
+    artifact_root: str
+    gcs_bucket: str | None
+
+    @classmethod
+    def from_environment(cls) -> "ArtifactSettings":
+        return cls(
+            artifact_backend=os.getenv("ARTIFACT_BACKEND", "local"),
+            artifact_root=os.getenv("ARTIFACT_ROOT", "artifacts/runs"),
+            gcs_bucket=os.getenv("GCS_BUCKET"),
+        )
+
+
+@dataclass(frozen=True)
 class Settings:
     """Read environment-backed configuration without leaking it into stages."""
 

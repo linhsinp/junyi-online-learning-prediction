@@ -52,6 +52,33 @@ flowchart LR
 - Training uses chronological partitions and fits transformations only on
   training data.
 
+### First stage-decoupling increment
+
+`train_from_features` is an independent manual entrypoint that reuses a retained
+feature snapshot and creates a new training-run identity. It registers the
+selected candidate without changing the approved pointer. The existing combined
+workflow remains scheduled and continues to promote its selected model.
+
+Both entrypoints select their input rows before a configurable chronological
+70/15/15 train-validation-test split. Validation selects the candidate; only the
+winner is evaluated on test data. Metadata records source fingerprints, row
+selection, split boundaries, and model configuration. Old registration manifests
+remain readable and no database migration is required. See the
+[standalone training runbook](training-from-features.md).
+
+The remaining decoupling sequence in
+[issue #7](https://github.com/linhsinp/junyi-online-learning-prediction/issues/7)
+is independent preprocessing, complete database feature publications,
+database-backed training, incremental feature state, promotion/recovery policy,
+and finally independent scheduling and operational cutover. Existing commands
+remain usable at each transition.
+
+A separate experiment-configuration increment will expose hyperparameters and
+selection of existing features through validated YAML, retaining the resolved
+configuration with each run. Optional MLflow comparison follows afterward; it
+does not replace Flyte orchestration or the current registration contract. See
+[the proposal and acceptance criteria](experiment-configuration.md).
+
 All tasks initially share one pinned runtime image while using distinct Flyte
 environments: `junyi-preprocess`, `junyi-features`, and `junyi-training`.
 Split images only after package or hardware requirements differ.
