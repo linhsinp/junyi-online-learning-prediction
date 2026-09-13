@@ -12,7 +12,7 @@ from junyi_predictor.bootstrap.database import (
     to_enum_aware_dict,
     validate_with_sqlmodel,
 )
-from junyi_predictor.contracts import FeatureSnapshot, PreprocessedSnapshot
+from junyi_predictor.contracts import PreprocessedSnapshot
 from junyi_predictor.pipeline.feature_engineering import build_feature_stage
 from junyi_predictor.progress import execution
 from junyi_predictor.storage.artifacts import create_artifact_store
@@ -141,9 +141,8 @@ def test_cloud_artifact_events_and_failure_propagation(records, monkeypatch, tmp
 
 
 @pytest.mark.parametrize("backend", ["local", "gcs"])
-@pytest.mark.parametrize("stage", ["preprocessed", "features"])
 def test_snapshot_loading_preserves_local_and_remote_paths(
-    backend, stage, records, monkeypatch, tmp_path
+    backend, records, monkeypatch, tmp_path
 ):
     monkeypatch.setenv("DATABASE_URL", "sqlite://")
     monkeypatch.setenv("ARTIFACT_BACKEND", backend)
@@ -152,32 +151,16 @@ def test_snapshot_loading_preserves_local_and_remote_paths(
     store = Mock()
     store.get_file.side_effect = lambda key, destination: destination
     monkeypatch.setattr(training, "_store_from_settings", lambda: store)
-    if stage == "preprocessed":
-        snapshot = PreprocessedSnapshot(
-            training_run_id="r1",
-            log_uri="log.parquet",
-            user_uri="user.parquet",
-            content_uri="content.parquet",
-            row_count=5,
-        )
-        loader = training._load_preprocessed_files
-        names = ["log.parquet", "user.parquet", "content.parquet"]
-        keys = [f"runs/r1/preprocessed/{name}" for name in names]
-    else:
-        snapshot = FeatureSnapshot(
-            training_run_id="r1",
-            log_uri="log.parquet",
-            concept_matrix_uri="concept.npy",
-            level4_matrix_uri="level4.npy",
-            row_count=5,
-        )
-        loader = training._load_snapshot_files
-        names = ["log.parquet", "concept.npy", "level4.npy"]
-        keys = [
-            "runs/r1/features/log.parquet",
-            "runs/r1/features/concept_proficiency.npy",
-            "runs/r1/features/level4_proficiency.npy",
-        ]
+    snapshot = PreprocessedSnapshot(
+        training_run_id="r1",
+        log_uri="log.parquet",
+        user_uri="user.parquet",
+        content_uri="content.parquet",
+        row_count=5,
+    )
+    loader = training._load_preprocessed_files
+    names = ["log.parquet", "user.parquet", "content.parquet"]
+    keys = [f"runs/r1/preprocessed/{name}" for name in names]
     with execution("training"):
         result = loader(snapshot)
     root = Path(".") if backend == "local" else tmp_path

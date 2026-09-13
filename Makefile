@@ -6,8 +6,10 @@ export DATABASE_URL
 START_DATE ?= 2019-06-01T00:00:00
 END_DATE ?= 2019-06-10T00:00:00
 NUM_SAMPLES ?= 1000
+TRAIN_FRACTION ?= 0.70
+VALIDATION_FRACTION ?= 0.15
 
-.PHONY: help test lint helm-lint helm-template flyte-training-local flyte-training-local-tui postgres-local kind-create download-data materialize-parquet reset-local seed-local
+.PHONY: help test lint helm-lint helm-template flyte-training-local flyte-training-local-tui flyte-train-from-features-local postgres-local kind-create download-data materialize-parquet reset-local seed-local
 
 help:
 	@echo "Available targets:"
@@ -24,6 +26,7 @@ help:
 	@echo "  make seed-local DATABASE_URL=..."
 	@echo "  make flyte-training-local START_DATE=... END_DATE=..."
 	@echo "  make flyte-training-local-tui START_DATE=... END_DATE=..."
+	@echo "  make flyte-train-from-features-local FEATURE_SNAPSHOT_KEY=runs/<source-run-id>/feature_snapshot.json"
 
 test:
 	$(UV) run pytest
@@ -63,7 +66,8 @@ flyte-training-local:
 	JUNYI_LOG_FORMAT="$${JUNYI_LOG_FORMAT:-text}" JUNYI_LOG_DIR="$${JUNYI_LOG_DIR:-artifacts/logs}" \
 	ARTIFACT_BACKEND=local ARTIFACT_ROOT=artifacts/runs \
 	PYTHONPATH=src $(UV) run flyte run --local src/junyi_predictor/workflows/training.py training_pipeline \
-		--start_date "$(START_DATE)" --end_date "$(END_DATE)"
+		--start_date "$(START_DATE)" --end_date "$(END_DATE)" \
+		--train_fraction "$(TRAIN_FRACTION)" --validation_fraction "$(VALIDATION_FRACTION)"
 
 flyte-training-local-tui:
 	@set -a; [ -f .env ] && . ./.env; set +a; \
@@ -71,4 +75,18 @@ flyte-training-local-tui:
 	JUNYI_LOG_CONSOLE=0 JUNYI_LOG_DIR="$${JUNYI_LOG_DIR:-artifacts/logs}" \
 	ARTIFACT_BACKEND=local ARTIFACT_ROOT=artifacts/runs \
 	PYTHONPATH=src $(UV) run flyte run --local --tui src/junyi_predictor/workflows/training.py training_pipeline \
-		--start_date "$(START_DATE)" --end_date "$(END_DATE)"
+		--start_date "$(START_DATE)" --end_date "$(END_DATE)" \
+		--train_fraction "$(TRAIN_FRACTION)" --validation_fraction "$(VALIDATION_FRACTION)"
+
+# Separate date variables deliberately avoid the combined workflow's sample window.
+flyte-train-from-features-local:
+	@test -n "$(FEATURE_SNAPSHOT_KEY)" || { echo "FEATURE_SNAPSHOT_KEY is required"; exit 2; }
+	@set -a; [ -f .env ] && . ./.env; set +a; \
+	set -- --feature_snapshot_key "$(FEATURE_SNAPSHOT_KEY)" \
+		--train_fraction "$(TRAIN_FRACTION)" --validation_fraction "$(VALIDATION_FRACTION)"; \
+	if [ -n "$(TRAINING_RUN_ID)" ]; then set -- "$$@" --training_run_id "$(TRAINING_RUN_ID)"; fi; \
+	if [ -n "$(FEATURE_START_DATE)" ]; then set -- "$$@" --start_date "$(FEATURE_START_DATE)"; fi; \
+	if [ -n "$(FEATURE_END_DATE)" ]; then set -- "$$@" --end_date "$(FEATURE_END_DATE)"; fi; \
+	JUNYI_LOG_FORMAT="$${JUNYI_LOG_FORMAT:-text}" JUNYI_LOG_DIR="$${JUNYI_LOG_DIR:-artifacts/logs}" \
+	ARTIFACT_BACKEND=local ARTIFACT_ROOT="$${ARTIFACT_ROOT:-artifacts/runs}" \
+	PYTHONPATH=src $(UV) run flyte run --local src/junyi_predictor/workflows/training.py train_from_features "$$@"
