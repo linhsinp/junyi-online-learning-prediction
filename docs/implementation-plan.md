@@ -79,6 +79,12 @@ configuration with each run. Optional MLflow comparison follows afterward; it
 does not replace Flyte orchestration or the current registration contract. See
 [the proposal and acceptance criteria](experiment-configuration.md).
 
+The optional [DVC and MLflow integration proposal](dvc-mlflow-integration-plan.md)
+preserves a local-first, two-stage design for dataset releases and experiment
+tracking. It is deferred until after the cloud MVP and reconciliation of issue
+#7's storage requirements; neither integration is required for the first remote
+demonstration.
+
 All tasks initially share one pinned runtime image while using distinct Flyte
 environments: `junyi-preprocess`, `junyi-features`, and `junyi-training`.
 Split images only after package or hardware requirements differ.
