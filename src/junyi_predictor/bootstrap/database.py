@@ -7,10 +7,13 @@ import math
 from collections import Counter
 from datetime import date
 from enum import Enum
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 import numpy as np
 import pandas as pd
+from google.cloud import storage
 from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -199,16 +202,17 @@ def reset_database(engine_url: str = DEFAULT_ENGINE_URL) -> None:
     SQLModel.metadata.drop_all(engine)
 
 
-@timed("bootstrap.seed_database")
-def seed_database_from_raw_files(engine_url: str = DEFAULT_ENGINE_URL) -> None:
-    """Load raw local artifacts and seed the PostgreSQL tables used by the workflows."""
+def seed_database_from_csv_paths(
+    user_path: Path, content_path: Path, engine_url: str = DEFAULT_ENGINE_URL
+) -> None:
+    """Load dimension CSVs and seed the tables required by preprocessing."""
     engine = create_engine(engine_url)
     df_user = pd.read_csv(
-        USER_FILE,
+        user_path,
         dtype={"uuid": "category", "gender": "category", "user_grade": "int8"},
     )
     df_content = pd.read_csv(
-        CONTENT_FILE,
+        content_path,
         dtype={
             "ucid": "category",
             "level4_id": "category",
@@ -224,3 +228,31 @@ def seed_database_from_raw_files(engine_url: str = DEFAULT_ENGINE_URL) -> None:
         df_user["first_login_date_TW"]
     ).dt.date
     create_table_from_dataframe(df_user, UserProfile, engine)
+
+
+@timed("bootstrap.seed_database")
+def seed_database_from_raw_files(engine_url: str = DEFAULT_ENGINE_URL) -> None:
+    """Load local raw artifacts and seed the PostgreSQL dimension tables."""
+    seed_database_from_csv_paths(USER_FILE, CONTENT_FILE, engine_url)
+
+
+@timed("bootstrap.seed_database_gcs")
+def seed_database_from_gcs(
+    bucket_name: str,
+    prefix: str,
+    engine_url: str = DEFAULT_ENGINE_URL,
+    *,
+    client: storage.Client | None = None,
+) -> None:
+    """Download staged dimensions from GCS and seed a private Cloud SQL database."""
+    bucket = (client or storage.Client()).bucket(bucket_name)
+    root_prefix = prefix.strip("/")
+    with TemporaryDirectory(prefix="junyi-dimensions-") as temporary:
+        root = Path(temporary)
+        user_path = root / "Info_UserData.csv"
+        content_path = root / "Info_Content.csv"
+        bucket.blob(f"{root_prefix}/Info_UserData.csv").download_to_filename(user_path)
+        bucket.blob(f"{root_prefix}/Info_Content.csv").download_to_filename(
+            content_path
+        )
+        seed_database_from_csv_paths(user_path, content_path, engine_url)

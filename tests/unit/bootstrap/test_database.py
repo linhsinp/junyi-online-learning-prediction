@@ -6,6 +6,7 @@ from junyi_predictor.bootstrap.database import (
     InfoContent,
     UserProfile,
     reset_database,
+    seed_database_from_gcs,
     seed_database_from_raw_files,
 )
 from junyi_predictor.paths import CONTENT_FILE, USER_FILE
@@ -44,6 +45,36 @@ def test_seed_database_from_raw_files_seeds_only_dimensions(monkeypatch):
 def test_seed_database_exports_expected_sqlmodel_types():
     assert InfoContent.__tablename__ == "info_content"
     assert UserProfile.__tablename__ == "user_profile"
+
+
+def test_seed_database_from_gcs_downloads_staged_dimension_files(monkeypatch):
+    downloaded: list[tuple[str, object]] = []
+    bucket = type("Bucket", (), {})()
+
+    class Blob:
+        def __init__(self, key):
+            self.key = key
+
+        def download_to_filename(self, destination):
+            downloaded.append((self.key, destination))
+
+    bucket.blob = lambda key: Blob(key)
+    client = type("Client", (), {"bucket": lambda self, _name: bucket})()
+    seeded: list[tuple[object, object, str]] = []
+    monkeypatch.setattr(
+        "junyi_predictor.bootstrap.database.seed_database_from_csv_paths",
+        lambda user, content, engine: seeded.append((user, content, engine)),
+    )
+
+    seed_database_from_gcs(
+        "lake", "data/dimensions", "postgresql://example", client=client
+    )
+
+    assert [key for key, _destination in downloaded] == [
+        "data/dimensions/Info_UserData.csv",
+        "data/dimensions/Info_Content.csv",
+    ]
+    assert seeded[0][2] == "postgresql://example"
 
 
 def test_reset_database_removes_source_and_workflow_tables_before_dimensions(

@@ -10,6 +10,10 @@ output "artifact_registry_repository" {
   value = google_artifact_registry_repository.runtime.name
 }
 
+output "runtime_image_repository" {
+  value = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.runtime.repository_id}/junyi-runtime"
+}
+
 output "cluster_name" {
   value = google_container_cluster.main.name
 }

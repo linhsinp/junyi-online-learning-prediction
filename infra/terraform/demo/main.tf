@@ -1,5 +1,8 @@
 locals {
-  name_prefix = "junyi-${var.environment}"
+  name_prefix          = "junyi-${var.environment}"
+  flyte_chart_version  = "v2.0.20"
+  task_config_map_name = "junyi-task-runtime"
+  task_secret_name     = "junyi-task-database"
   services = toset([
     "artifactregistry.googleapis.com",
     "container.googleapis.com",
@@ -128,6 +131,11 @@ resource "google_service_account" "flyte_task" {
   display_name = "Junyi Flyte task identity"
 }
 
+resource "google_service_account" "flyte_control" {
+  account_id   = "${local.name_prefix}-flyte-control"
+  display_name = "Flyte control-plane identity"
+}
+
 resource "google_storage_bucket_iam_member" "flyte_artifacts" {
   bucket = google_storage_bucket.artifacts.name
   role   = "roles/storage.objectAdmin"
@@ -138,6 +146,12 @@ resource "google_storage_bucket_iam_member" "flyte_data_lake" {
   bucket = google_storage_bucket.data_lake.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.flyte_task.email}"
+}
+
+resource "google_storage_bucket_iam_member" "flyte_control_artifacts" {
+  bucket = google_storage_bucket.artifacts.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.flyte_control.email}"
 }
 
 resource "google_project_iam_member" "flyte_sql" {
@@ -166,6 +180,22 @@ resource "kubernetes_namespace_v1" "flyte" {
   metadata { name = "flyte" }
 }
 
+resource "kubernetes_resource_quota_v1" "flyte" {
+  metadata {
+    name      = "junyi-demo-limits"
+    namespace = kubernetes_namespace_v1.flyte.metadata[0].name
+  }
+
+  spec {
+    hard = {
+      "requests.cpu"               = "4"
+      "requests.memory"            = "12Gi"
+      "requests.ephemeral-storage" = "12Gi"
+      "pods"                       = "8"
+    }
+  }
+}
+
 resource "kubernetes_service_account_v1" "task" {
   metadata {
     name      = "junyi-flyte-task"
@@ -176,10 +206,99 @@ resource "kubernetes_service_account_v1" "task" {
   }
 }
 
+resource "kubernetes_service_account_v1" "control" {
+  metadata {
+    name      = "junyi-flyte-control"
+    namespace = kubernetes_namespace_v1.flyte.metadata[0].name
+    annotations = {
+      "iam.gke.io/gcp-service-account" = google_service_account.flyte_control.email
+    }
+  }
+}
+
 resource "google_service_account_iam_member" "task_workload_identity" {
   service_account_id = google_service_account.flyte_task.name
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[flyte/junyi-flyte-task]"
+}
+
+resource "google_service_account_iam_member" "control_workload_identity" {
+  service_account_id = google_service_account.flyte_control.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[flyte/junyi-flyte-control]"
+}
+
+resource "kubernetes_config_map_v1" "task_runtime" {
+  metadata {
+    name      = local.task_config_map_name
+    namespace = kubernetes_namespace_v1.flyte.metadata[0].name
+  }
+
+  data = {
+    ARTIFACT_BACKEND      = "gcs"
+    ARTIFACT_ROOT         = "runs"
+    DATA_LAKE_BACKEND     = "gcs"
+    DATA_LAKE_BUCKET      = google_storage_bucket.data_lake.name
+    DATA_LAKE_PREFIX      = "data/curated/log_problem"
+    DIMENSION_DATA_PREFIX = "data/dimensions"
+    GCS_BUCKET            = google_storage_bucket.artifacts.name
+    JUNYI_LOG_FORMAT      = "json"
+    JUNYI_LOG_LEVEL       = "INFO"
+  }
+}
+
+resource "kubernetes_secret_v1" "task_database" {
+  metadata {
+    name      = local.task_secret_name
+    namespace = kubernetes_namespace_v1.flyte.metadata[0].name
+  }
+
+  data = {
+    DATABASE_URL = "postgresql://${google_sql_user.junyi.name}:${urlencode(var.database_password)}@${google_sql_database_instance.postgres.private_ip_address}:5432/${google_sql_database.junyi.name}"
+  }
+}
+
+resource "kubernetes_job_v1" "seed_dimensions" {
+  count = var.runtime_image == "" ? 0 : 1
+
+  metadata {
+    name      = "junyi-seed-dimensions"
+    namespace = kubernetes_namespace_v1.flyte.metadata[0].name
+  }
+
+  spec {
+    backoff_limit              = 0
+    ttl_seconds_after_finished = 900
+
+    template {
+      metadata { labels = { app = "junyi-dimension-seeder" } }
+      spec {
+        service_account_name = kubernetes_service_account_v1.task.metadata[0].name
+        restart_policy       = "Never"
+
+        container {
+          name    = "seed-dimensions"
+          image   = var.runtime_image
+          command = ["uv", "run", "python", "-m", "junyi_predictor.cli", "seed-db-from-gcs"]
+
+          env_from {
+            config_map_ref { name = kubernetes_config_map_v1.task_runtime.metadata[0].name }
+          }
+          env_from {
+            secret_ref { name = kubernetes_secret_v1.task_database.metadata[0].name }
+          }
+
+          resources {
+            requests = {
+              cpu                 = "500m"
+              memory              = "1Gi"
+              "ephemeral-storage" = "1Gi"
+            }
+          }
+        }
+      }
+    }
+  }
 }
 
 resource "helm_release" "flyte" {
@@ -187,7 +306,7 @@ resource "helm_release" "flyte" {
   namespace  = kubernetes_namespace_v1.flyte.metadata[0].name
   repository = "https://flyteorg.github.io/flyte"
   chart      = "flyte-binary"
-  version    = var.flyte_chart_version
+  version    = local.flyte_chart_version
   values     = [file("${path.module}/../../helm/flyte/values-demo.yaml")]
 
   set {
@@ -196,8 +315,48 @@ resource "helm_release" "flyte" {
   }
 
   set {
+    name  = "flyte-core-components.runs.database.postgres.host"
+    value = google_sql_database_instance.postgres.private_ip_address
+  }
+
+  set {
+    name  = "flyte-core-components.runs.database.postgres.dbname"
+    value = google_sql_database.flyte.name
+  }
+
+  set {
+    name  = "flyte-core-components.runs.database.postgres.username"
+    value = google_sql_user.flyte.name
+  }
+
+  set_sensitive {
+    name  = "flyte-core-components.runs.database.postgres.password"
+    value = var.database_password
+  }
+
+  set {
+    name  = "flyte-core-components.runs.storagePrefix"
+    value = "gs://${google_storage_bucket.artifacts.name}/flyte"
+  }
+
+  set {
     name  = "configuration.database.port"
     value = "5432"
+  }
+
+  set {
+    name  = "configuration.storage.providerConfig.gcs.project"
+    value = var.project_id
+  }
+
+  set {
+    name  = "serviceAccount.create"
+    value = "false"
+  }
+
+  set {
+    name  = "serviceAccount.name"
+    value = kubernetes_service_account_v1.control.metadata[0].name
   }
 
   set {
@@ -234,5 +393,7 @@ resource "helm_release" "flyte" {
     google_sql_database.flyte,
     google_sql_user.flyte,
     google_service_account_iam_member.task_workload_identity,
+    google_service_account_iam_member.control_workload_identity,
+    google_storage_bucket_iam_member.flyte_control_artifacts,
   ]
 }

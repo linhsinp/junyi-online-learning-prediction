@@ -1,10 +1,36 @@
-# Pin the Flyte chart version through Terraform. Terraform sets the Cloud SQL
-# host, database, username, password, and GCS bucket names at deployment time.
+# Validated against flyte-binary v2.0.20. Terraform injects Cloud SQL and bucket
+# identifiers, keeping credentials out of this overlay.
+flyte-core-components:
+  manager:
+    kubernetes:
+      namespace: flyte
+  actions:
+    kubernetes:
+      namespace: flyte
+  runs:
+    database:
+      postgres:
+        options: sslmode=disable
+
 configuration:
   database:
     options: sslmode=disable
   storage:
     provider: gcs
+    providerConfig:
+      gcs: {}
+
+deployment:
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+
+service:
+  type: ClusterIP
+
+ingress:
+  create: false
 
 # The exact chart keys are intentionally kept in one overlay. Update this file
 # against the pinned Flyte OSS chart before a cloud demo, rather than changing

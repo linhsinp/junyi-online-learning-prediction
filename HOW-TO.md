@@ -63,9 +63,11 @@ For an interactive local task-progress display, use the TUI target instead:
 make flyte-training-local-tui START_DATE=2019-06-01T00:00:00 END_DATE=2019-06-10T00:00:00
 ```
 
-## Planned remote GKE demonstration
+## Remote GKE demonstration
 
-The remote Flyte OSS demonstration is follow-up work and is not validated by the local workflow. The configuration below documents the intended cloud path.
+The cloud MVP is a manually gated, bounded demonstration. Follow the
+[cloud MVP runbook](docs/cloud-mvp-runbook.md) to provision, stage, seed,
+register, verify, and immediately tear down the environment.
 
 Use Terraform and Helm for different responsibilities:
 
@@ -83,13 +85,9 @@ terraform -chdir=infra/terraform/demo init \
   -backend-config="prefix=junyi/demo"
 ```
 
-Build and push the runtime image, register the workflow with `flyte deploy`, run one remote execution, then destroy the environment after the demonstration:
-
-```bash
-terraform -chdir=infra/terraform/demo destroy
-```
-
-Remote tasks use Workload Identity and `ARTIFACT_BACKEND=gcs`; do not mount service-account JSON keys.
+Remote tasks use Workload Identity and `ARTIFACT_BACKEND=gcs`; do not mount
+service-account JSON keys. The Flyte control plane is private and accessed only
+through `kubectl port-forward` for this MVP.
 
 ## Main Entry Points
 

@@ -17,6 +17,8 @@ variable "database_password" {
   sensitive = true
 }
 
-variable "flyte_chart_version" {
-  type = string
+variable "runtime_image" {
+  description = "Immutable Artifact Registry image URI for the one-off dimension seeder Job."
+  type        = string
+  default     = ""
 }
