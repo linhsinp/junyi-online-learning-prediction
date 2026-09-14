@@ -130,6 +130,45 @@ Use `make flyte-training-local-tui` for an interactive display of a newly
 launched local run. The TUI is local-only; browser-based Flyte run history and
 per-task Kubernetes pods require the stage 4 Flyte OSS deployment.
 
+### Cloud-MVP prerequisites
+
+The cloud demonstration is manually gated and requires an authenticated local
+operator. Install the following before provisioning anything:
+
+| Requirement | Purpose | Verify |
+| --- | --- | --- |
+| Google Cloud CLI and GKE authentication plugin | Authenticate, manage the project, push images, and inspect GKE | `gcloud version`, `gke-gcloud-auth-plugin --version` |
+| Terraform 1.6 or newer | Provision bootstrap and demo infrastructure | `terraform version` |
+| Docker Engine | Build and push the runtime image | `docker version` |
+| Helm and `kubectl` | Validate charts and inspect the remote deployment | `helm version --short`, `kubectl version --client` |
+| `uv` | Run the repository's pinned Python and Flyte dependencies | `uv --version`, `uv run flyte --help` |
+
+Create or select a dedicated billed GCP project, then run `gcloud init` and
+select that project. Local Terraform and Python GCS clients use Application
+Default Credentials, which are separate from the CLI login:
+
+```sh
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud auth application-default login
+gcloud auth application-default set-quota-project YOUR_PROJECT_ID
+gcloud auth application-default print-access-token >/dev/null
+```
+
+The final command verifies local credentials without printing a token. The
+operator needs permission to enable the configured APIs and to create the GCS,
+networking, GKE, Artifact Registry, Cloud SQL, service-account, IAM, Helm, and
+Kubernetes resources declared in Terraform. A dedicated personal demo project
+can use Project Owner access; shared projects should grant the corresponding
+least-privilege roles through the project administrator.
+
+Do not install Flyte globally for this repository. The checked-in `uv.lock`
+provides the CLI used by the deployment commands. The GKE authentication plugin
+is only needed for direct `kubectl` inspection; Terraform uses its configured
+Google and Kubernetes providers. If its verification command is unavailable in
+a Google Cloud CLI installation that supports component management, install it
+with `gcloud components install gke-gcloud-auth-plugin`.
+
 ### 4. Ephemeral cloud demonstration
 
 1. Apply `infra/terraform/bootstrap` to create the remote state bucket.
