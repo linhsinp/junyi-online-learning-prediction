@@ -21,7 +21,7 @@ resources, retries, caching, schedules, and run history.
 
 The repository must not schedule `flyte run --local` inside a Kubernetes
 CronJob. Helm deploys Flyte; Flyte deploys Junyi task pods and owns the
-application schedule.
+application execution. Automatic scheduling is disabled for the cloud MVP.
 
 The target split between Terraform, Helm, and Flyte workflow code is documented
 in [cloud configuration ownership and migration plan](cloud-configuration-ownership.md).
@@ -60,7 +60,7 @@ flowchart LR
 `train_from_features` is an independent manual entrypoint that reuses a retained
 feature snapshot and creates a new training-run identity. It registers the
 selected candidate without changing the approved pointer. The existing combined
-workflow remains scheduled and continues to promote its selected model.
+workflow is manually invoked and continues to promote its selected model.
 
 Both entrypoints select their input rows before a configurable chronological
 70/15/15 train-validation-test split. Validation selects the candidate; only the

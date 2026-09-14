@@ -21,7 +21,7 @@ def test_training_workflow_exposes_separate_task_environments():
     assert feature_env is not train_env
     assert pipeline_env is not train_env
     assert training_pipeline is not None
-    assert training_pipeline.triggers[0].name == "weekly-training"
+    assert not training_pipeline.triggers
     assert materialize_preprocessed.name == "junyi-preprocess.materialize_preprocessed"
     assert (
         materialize_feature_snapshot.name

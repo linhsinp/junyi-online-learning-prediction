@@ -319,13 +319,7 @@ async def train_from_features(
     )
 
 
-@pipeline_env.task(
-    triggers=flyte.Trigger(
-        name="weekly-training",
-        automation=flyte.Cron("0 3 * * 1"),
-        description="Train and register the weekly Junyi model.",
-    )
-)
+@pipeline_env.task
 @task_logging("pipeline")
 async def training_pipeline(
     start_date: datetime | None = None,
