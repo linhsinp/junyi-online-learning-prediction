@@ -128,6 +128,11 @@ resource "google_service_account" "flyte_task" {
   display_name = "Junyi Flyte task identity"
 }
 
+resource "google_service_account" "flyte_control" {
+  account_id   = "${local.name_prefix}-flyte-control"
+  display_name = "Flyte control-plane identity"
+}
+
 resource "google_storage_bucket_iam_member" "flyte_artifacts" {
   bucket = google_storage_bucket.artifacts.name
   role   = "roles/storage.objectAdmin"
@@ -140,40 +145,16 @@ resource "google_storage_bucket_iam_member" "flyte_data_lake" {
   member = "serviceAccount:${google_service_account.flyte_task.email}"
 }
 
+resource "google_storage_bucket_iam_member" "flyte_control_artifacts" {
+  bucket = google_storage_bucket.artifacts.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.flyte_control.email}"
+}
+
 resource "google_project_iam_member" "flyte_sql" {
   project = var.project_id
   role    = "roles/cloudsql.client"
   member  = "serviceAccount:${google_service_account.flyte_task.email}"
-}
-
-data "google_client_config" "current" {}
-
-provider "kubernetes" {
-  host                   = "https://${google_container_cluster.main.endpoint}"
-  token                  = data.google_client_config.current.access_token
-  cluster_ca_certificate = base64decode(google_container_cluster.main.master_auth[0].cluster_ca_certificate)
-}
-
-provider "helm" {
-  kubernetes {
-    host                   = "https://${google_container_cluster.main.endpoint}"
-    token                  = data.google_client_config.current.access_token
-    cluster_ca_certificate = base64decode(google_container_cluster.main.master_auth[0].cluster_ca_certificate)
-  }
-}
-
-resource "kubernetes_namespace_v1" "flyte" {
-  metadata { name = "flyte" }
-}
-
-resource "kubernetes_service_account_v1" "task" {
-  metadata {
-    name      = "junyi-flyte-task"
-    namespace = kubernetes_namespace_v1.flyte.metadata[0].name
-    annotations = {
-      "iam.gke.io/gcp-service-account" = google_service_account.flyte_task.email
-    }
-  }
 }
 
 resource "google_service_account_iam_member" "task_workload_identity" {
@@ -182,57 +163,8 @@ resource "google_service_account_iam_member" "task_workload_identity" {
   member             = "serviceAccount:${var.project_id}.svc.id.goog[flyte/junyi-flyte-task]"
 }
 
-resource "helm_release" "flyte" {
-  name       = "flyte"
-  namespace  = kubernetes_namespace_v1.flyte.metadata[0].name
-  repository = "https://flyteorg.github.io/flyte"
-  chart      = "flyte-binary"
-  version    = var.flyte_chart_version
-  values     = [file("${path.module}/../../helm/flyte/values-demo.yaml")]
-
-  set {
-    name  = "configuration.database.host"
-    value = google_sql_database_instance.postgres.private_ip_address
-  }
-
-  set {
-    name  = "configuration.database.port"
-    value = "5432"
-  }
-
-  set {
-    name  = "configuration.database.dbname"
-    value = google_sql_database.flyte.name
-  }
-
-  set {
-    name  = "configuration.database.username"
-    value = google_sql_user.flyte.name
-  }
-
-  set_sensitive {
-    name  = "configuration.database.password"
-    value = var.database_password
-  }
-
-  set {
-    name  = "configuration.storage.provider"
-    value = "gcs"
-  }
-
-  set {
-    name  = "configuration.storage.metadataContainer"
-    value = google_storage_bucket.artifacts.name
-  }
-
-  set {
-    name  = "configuration.storage.userDataContainer"
-    value = google_storage_bucket.artifacts.name
-  }
-
-  depends_on = [
-    google_sql_database.flyte,
-    google_sql_user.flyte,
-    google_service_account_iam_member.task_workload_identity,
-  ]
+resource "google_service_account_iam_member" "control_workload_identity" {
+  service_account_id = google_service_account.flyte_control.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "serviceAccount:${var.project_id}.svc.id.goog[flyte/junyi-flyte-control]"
 }

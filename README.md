@@ -23,6 +23,7 @@ Infrastructure is separated by concern under `infra/`:
 - `infra/terraform/`: provisions shared cloud resources such as buckets and IAM
 - `infra/helm/local-postgres/`: development-only PostgreSQL for a kind cluster
 - `infra/helm/flyte/`: Flyte OSS deployment overlay for GKE
+- `infra/helm/junyi-cloud/`: Junyi task configuration, identity annotation, quota, and seeder
 - `infra/docker/`: builds the container images used by local and cluster workloads
 
 See [the implementation plan](docs/implementation-plan.md) for the local kind,

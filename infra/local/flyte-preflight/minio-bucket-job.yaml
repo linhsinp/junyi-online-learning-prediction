@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-create-flyte-data
+  namespace: flyte-preflight
+spec:
+  backoffLimit: 20
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-bucket
+          # quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z
+          image: quay.io/minio/mc@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              until mc alias set local http://minio:9000 minio flyte-preflight-local-only; do
+                sleep 2
+              done
+              mc mb --ignore-existing local/flyte-data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi

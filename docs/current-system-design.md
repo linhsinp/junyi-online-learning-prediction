@@ -8,7 +8,7 @@ Training can also run independently through `train_from_features`, consuming
 an existing v1 feature publication with a fresh experiment ID. It requires only
 the artifact store and registers without promotion. Both workflow entrypoints
 share chronological train-validation-test evaluation (70/15/15 by default).
-The combined workflow retains its schedule and promotion behavior. See
+The combined workflow is manually invoked and retains its promotion behavior. See
 [the standalone training runbook](training-from-features.md) for this first
 increment of stage decoupling; database-backed feature publication is follow-up
 work in [issue #7](https://github.com/linhsinp/junyi-online-learning-prediction/issues/7).

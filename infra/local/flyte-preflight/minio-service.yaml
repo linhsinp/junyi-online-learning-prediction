@@ -1,0 +1,15 @@
+# Ephemeral S3-compatible storage for the local Flyte backend preflight.
+# Image tags are pinned so the test is reproducible. The emptyDir in the
+# matching deployment is intentional: teardown discards all test state.
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: flyte-preflight
+spec:
+  selector:
+    app.kubernetes.io/name: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api

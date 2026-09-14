@@ -16,7 +16,3 @@ variable "database_password" {
   type      = string
   sensitive = true
 }
-
-variable "flyte_chart_version" {
-  type = string
-}

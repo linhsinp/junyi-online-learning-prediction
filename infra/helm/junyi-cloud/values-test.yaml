@@ -1,0 +1,8 @@
+# Rendering fixtures only; never use for a cloud deployment.
+serviceAccount:
+  googleEmail: task@example.iam.gserviceaccount.com
+config:
+  artifactBucket: fixture-artifacts
+  dataLakeBucket: fixture-lake
+database:
+  url: postgresql://fixture

@@ -50,6 +50,24 @@ def upload_curated_log(
     return len(files)
 
 
+@timed("data_lake.upload_dimensions", fields=("bucket_name", "prefix"))
+def upload_dimension_csvs(
+    user_path: Path,
+    content_path: Path,
+    bucket_name: str,
+    prefix: str,
+    *,
+    client: storage.Client | None = None,
+) -> None:
+    """Stage the two Cloud SQL dimension inputs under a stable GCS prefix."""
+    bucket = (client or storage.Client()).bucket(bucket_name)
+    root_prefix = prefix.strip("/")
+    for source in (user_path, content_path):
+        if not source.is_file():
+            raise FileNotFoundError(f"Dimension CSV does not exist: {source}")
+        bucket.blob(f"{root_prefix}/{source.name}").upload_from_filename(source)
+
+
 @timed("data_lake.download", fields=("bucket_name", "prefix"))
 def download_curated_log_partitions(
     bucket_name: str,

@@ -10,6 +10,13 @@ from uuid import uuid4
 
 import flyte
 import numpy as np
+from kubernetes.client import (
+    V1ConfigMapEnvSource,
+    V1Container,
+    V1EnvFromSource,
+    V1PodSpec,
+    V1SecretEnvSource,
+)
 from sqlalchemy import create_engine
 
 from junyi_predictor.contracts import FeatureSnapshot, PipelineRun, PreprocessedSnapshot
@@ -26,37 +33,64 @@ from junyi_predictor.storage.data_lake import resolve_curated_log_root
 
 logger = logging.getLogger(__name__)
 
-preprocess_env = flyte.TaskEnvironment(
-    name="junyi-preprocess",
-    image="auto",
-    resources=flyte.Resources(memory="2Gi"),
-    env_vars=remote_logging_env(),
+RUNTIME_IMAGE = flyte.Image.from_ref_name("runtime")
+TASK_CONFIG_MAP = "junyi-task-runtime"
+TASK_SECRET = "junyi-task-database"
+TASK_SERVICE_ACCOUNT = "junyi-flyte-task"
+
+
+def _task_pod_template() -> flyte.PodTemplate:
+    """Attach the Helm-managed task identity and runtime configuration."""
+    return flyte.PodTemplate(
+        pod_spec=V1PodSpec(
+            service_account_name=TASK_SERVICE_ACCOUNT,
+            containers=[
+                V1Container(
+                    name="primary",
+                    env_from=[
+                        V1EnvFromSource(
+                            config_map_ref=V1ConfigMapEnvSource(name=TASK_CONFIG_MAP)
+                        ),
+                        V1EnvFromSource(secret_ref=V1SecretEnvSource(name=TASK_SECRET)),
+                    ],
+                )
+            ],
+        )
+    )
+
+
+def _remote_environment(
+    name: str, resources: flyte.Resources, *, depends_on: list | None = None
+) -> flyte.TaskEnvironment:
+    """Create a remote task environment with the fixed runtime image."""
+    return flyte.TaskEnvironment(
+        name=name,
+        image=RUNTIME_IMAGE,
+        resources=resources,
+        depends_on=depends_on or [],
+        pod_template=_task_pod_template(),
+        env_vars=remote_logging_env(),
+    )
+
+
+preprocess_env = _remote_environment(
+    "junyi-preprocess", flyte.Resources(cpu="500m", memory="3Gi", disk="2Gi")
 )
-feature_env = flyte.TaskEnvironment(
-    name="junyi-features",
-    image="auto",
-    resources=flyte.Resources(memory="4Gi"),
-    env_vars=remote_logging_env(),
+feature_env = _remote_environment(
+    "junyi-features", flyte.Resources(cpu="1", memory="4Gi", disk="3Gi")
 )
-train_env = flyte.TaskEnvironment(
-    name="junyi-training",
-    image="auto",
-    resources=flyte.Resources(memory="4Gi"),
-    env_vars=remote_logging_env(),
+train_env = _remote_environment(
+    "junyi-training", flyte.Resources(cpu="1", memory="4Gi", disk="3Gi")
 )
-pipeline_env = flyte.TaskEnvironment(
-    name="junyi-pipeline",
-    image="auto",
-    resources=flyte.Resources(memory="1Gi"),
+pipeline_env = _remote_environment(
+    "junyi-pipeline",
+    flyte.Resources(cpu="250m", memory="512Mi", disk="512Mi"),
     depends_on=[preprocess_env, feature_env, train_env],
-    env_vars=remote_logging_env(),
 )
-training_only_env = flyte.TaskEnvironment(
-    name="junyi-training-only",
-    image="auto",
-    resources=flyte.Resources(memory="1Gi"),
+training_only_env = _remote_environment(
+    "junyi-training-only",
+    flyte.Resources(cpu="250m", memory="512Mi", disk="512Mi"),
     depends_on=[train_env],
-    env_vars=remote_logging_env(),
 )
 
 
@@ -285,13 +319,7 @@ async def train_from_features(
     )
 
 
-@pipeline_env.task(
-    triggers=flyte.Trigger(
-        name="weekly-training",
-        automation=flyte.Cron("0 3 * * 1"),
-        description="Train and register the weekly Junyi model.",
-    )
-)
+@pipeline_env.task
 @task_logging("pipeline")
 async def training_pipeline(
     start_date: datetime | None = None,

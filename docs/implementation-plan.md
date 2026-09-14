@@ -21,7 +21,10 @@ resources, retries, caching, schedules, and run history.
 
 The repository must not schedule `flyte run --local` inside a Kubernetes
 CronJob. Helm deploys Flyte; Flyte deploys Junyi task pods and owns the
-application schedule.
+application execution. Automatic scheduling is disabled for the cloud MVP.
+
+The target split between Terraform, Helm, and Flyte workflow code is documented
+in [cloud configuration ownership and migration plan](cloud-configuration-ownership.md).
 
 ## Application architecture
 
@@ -57,7 +60,7 @@ flowchart LR
 `train_from_features` is an independent manual entrypoint that reuses a retained
 feature snapshot and creates a new training-run identity. It registers the
 selected candidate without changing the approved pointer. The existing combined
-workflow remains scheduled and continues to promote its selected model.
+workflow is manually invoked and continues to promote its selected model.
 
 Both entrypoints select their input rows before a configurable chronological
 70/15/15 train-validation-test split. Validation selects the candidate; only the
@@ -130,21 +133,60 @@ Use `make flyte-training-local-tui` for an interactive display of a newly
 launched local run. The TUI is local-only; browser-based Flyte run history and
 per-task Kubernetes pods require the stage 4 Flyte OSS deployment.
 
+### Cloud-MVP prerequisites
+
+The cloud demonstration is manually gated and requires an authenticated local
+operator. Install the following before provisioning anything:
+
+| Requirement | Purpose | Verify |
+| --- | --- | --- |
+| Google Cloud CLI and GKE authentication plugin | Authenticate, manage the project, push images, and inspect GKE | `gcloud version`, `gke-gcloud-auth-plugin --version` |
+| Terraform 1.6 or newer | Provision bootstrap and demo infrastructure | `terraform version` |
+| Docker Engine | Build and push the runtime image | `docker version` |
+| Helm and `kubectl` | Validate charts and inspect the remote deployment | `helm version --short`, `kubectl version --client` |
+| `uv` | Run the repository's pinned Python and Flyte dependencies | `uv --version`, `uv run flyte --help` |
+
+Create or select a dedicated billed GCP project, then run `gcloud init` and
+select that project. Local Terraform and Python GCS clients use Application
+Default Credentials, which are separate from the CLI login:
+
+```sh
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud auth application-default login
+gcloud auth application-default set-quota-project YOUR_PROJECT_ID
+gcloud auth application-default print-access-token >/dev/null
+```
+
+The final command verifies local credentials without printing a token. The
+operator needs permission to enable the configured APIs and to create the GCS,
+networking, GKE, Artifact Registry, Cloud SQL, service-account, IAM, Helm, and
+Kubernetes resources declared in Terraform. A dedicated personal demo project
+can use Project Owner access; shared projects should grant the corresponding
+least-privilege roles through the project administrator.
+
+Do not install Flyte globally for this repository. The checked-in `uv.lock`
+provides the CLI used by the deployment commands. The GKE authentication plugin
+is needed for Helm deployment and direct `kubectl` inspection. Terraform uses
+only its Google provider. If its verification command is unavailable in
+a Google Cloud CLI installation that supports component management, install it
+with `gcloud components install gke-gcloud-auth-plugin`.
+
 ### 4. Ephemeral cloud demonstration
 
 1. Apply `infra/terraform/bootstrap` to create the remote state bucket.
-2. Initialize and apply `infra/terraform/demo` with a pinned Flyte chart version
-   and securely supplied database password.
+2. Initialize and apply `infra/terraform/demo` with a securely supplied database password.
 3. Build and push the runtime image to Artifact Registry.
 4. Upload the selected curated Parquet partitions to the Terraform-provisioned
    data-lake bucket with `make upload-curated-data DATA_LAKE_BUCKET=...`.
-5. Deploy Flyte OSS with Helm, configure its task identity, and register the
-   workflow with `flyte deploy`.
+5. Generate Helm values from Terraform outputs; install the Junyi and pinned
+   Flyte releases, seed dimensions, and register the workflow with `flyte deploy`.
+   Follow the [cloud MVP runbook](cloud-mvp-runbook.md) for exact commands.
 6. Execute one remote training run with `DATA_LAKE_BACKEND=gcs`,
    `DATA_LAKE_BUCKET`, and the selected data-lake prefix configured in the task
    environment; inspect Flyte actions, Cloud SQL rows,
    GCS artifacts, and the approved-model manifest.
-7. Destroy the demo Terraform environment immediately after verification.
+7. Uninstall both Helm releases, then destroy the demo Terraform environment.
 
 ## Terraform boundary
 
@@ -159,8 +201,8 @@ per-task Kubernetes pods require the stage 4 Flyte OSS deployment.
 The bootstrap configuration creates a versioned GCS state bucket. The demo
 configuration creates a VPC/subnet, private-service connection, GKE Autopilot,
 Artifact Registry, separate data-lake and artifact buckets, Cloud SQL PostgreSQL databases, and a
-least-privilege task identity. Terraform connects Helm and Kubernetes providers
-to GKE using its endpoint, access token, and CA certificate.
+least-privilege task identity. Terraform exposes cloud outputs; Helm uses them
+to configure the Junyi project and Flyte platform through the GKE kubeconfig.
 
 Workload Identity maps the Flyte task Kubernetes service account to a Google
 service account with bucket-scoped object access and Cloud SQL client access.

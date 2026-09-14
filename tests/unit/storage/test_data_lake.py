@@ -11,6 +11,7 @@ from junyi_predictor.storage.data_lake import (
     download_curated_log_partitions,
     resolve_curated_log_root,
     upload_curated_log,
+    upload_dimension_csvs,
 )
 
 
@@ -31,6 +32,23 @@ def test_upload_curated_log_preserves_partition_relative_paths(tmp_path: Path):
         "data/curated/log_problem/year=2024/month=06/part-00000.parquet"
     )
     bucket.blob.return_value.upload_from_filename.assert_called_once_with(source)
+
+
+def test_upload_dimension_csvs_uses_stable_gcs_names(tmp_path: Path):
+    user = tmp_path / "Info_UserData.csv"
+    content = tmp_path / "Info_Content.csv"
+    user.write_text("uuid")
+    content.write_text("ucid")
+    bucket = MagicMock()
+    client = MagicMock()
+    client.bucket.return_value = bucket
+
+    upload_dimension_csvs(user, content, "lake", "data/dimensions", client=client)
+
+    assert [call.args[0] for call in bucket.blob.call_args_list] == [
+        "data/dimensions/Info_UserData.csv",
+        "data/dimensions/Info_Content.csv",
+    ]
 
 
 def test_download_curated_log_partitions_selects_required_months(tmp_path: Path):

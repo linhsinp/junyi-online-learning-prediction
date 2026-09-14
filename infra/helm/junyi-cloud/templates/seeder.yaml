@@ -1,0 +1,31 @@
+{{- if .Values.seeder.enabled }}
+{{- if not (regexMatch "@sha256:[a-f0-9]{64}$" .Values.seeder.image) }}
+{{- fail "seeder.image must use an immutable sha256 digest" }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: junyi-seed-dimensions
+  namespace: {{ .Release.Namespace }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 1200
+  template:
+    metadata:
+      labels:
+        app: junyi-dimension-seeder
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      restartPolicy: Never
+      containers:
+        - name: seed-dimensions
+          image: {{ .Values.seeder.image | quote }}
+          command: ["uv", "run", "python", "-m", "junyi_predictor.cli", "seed-db-from-gcs"]
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.config.name }}
+            - secretRef:
+                name: {{ .Values.database.secretName }}
+          resources:
+{{ toYaml .Values.seeder.resources | indent 12 }}
+{{- end }}

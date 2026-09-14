@@ -13,7 +13,7 @@ artifacts/
 
 terraform-provider-google_v6.38.0_x5
 infra/terraform/**/.terraform/
-infra/terraform/*.tfstate
-infra/terraform/*.tfstate.*
+infra/terraform/**/*.tfstate
+infra/terraform/**/*.tfstate.*
 kaggle.json
 gcs-service-account.json
