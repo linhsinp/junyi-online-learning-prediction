@@ -1,3 +1,7 @@
+from junyi_predictor.workflows.preflight import (
+    PREFLIGHT_ENVIRONMENT,
+    runtime_compatibility,
+)
 from junyi_predictor.workflows.training import (
     RUNTIME_IMAGE,
     TASK_CONFIG_MAP,
@@ -46,3 +50,13 @@ def test_remote_task_environment_uses_the_fixed_image_and_identity():
     assert pod_spec.service_account_name == TASK_SERVICE_ACCOUNT
     assert primary.env_from[0].config_map_ref.name == TASK_CONFIG_MAP
     assert primary.env_from[1].secret_ref.name == TASK_SECRET
+
+
+def test_preflight_uses_the_production_task_runtime_contract():
+    pod_spec = PREFLIGHT_ENVIRONMENT.pod_template.pod_spec
+
+    assert PREFLIGHT_ENVIRONMENT.image is RUNTIME_IMAGE
+    assert PREFLIGHT_ENVIRONMENT.name == "junyi-runtime-preflight"
+    assert PREFLIGHT_ENVIRONMENT.resources.cpu == "250m"
+    assert pod_spec.service_account_name == TASK_SERVICE_ACCOUNT
+    assert runtime_compatibility.name == "junyi-runtime-preflight.runtime_compatibility"

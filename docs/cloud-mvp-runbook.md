@@ -85,6 +85,11 @@ kubectl -n flyte wait --for=condition=complete job/junyi-seed-dimensions --timeo
 
 ## Register, run, and verify
 
+Before provisioning GKE, run the disposable local backend preflight in
+[`docs/flyte-backend-preflight.md`](flyte-backend-preflight.md). It validates
+the pinned chart/backend, SDK, and linux/amd64 runtime-image scheduling path;
+the cloud run below then validates GKE, Workload Identity, Cloud SQL, and GCS.
+
 Keep the control plane private. In one terminal, port-forward the ClusterIP
 service; in another, pass the local endpoint directly to the Flyte CLI and
 deploy the image mapping.

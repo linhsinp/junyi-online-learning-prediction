@@ -2,6 +2,7 @@
 
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 import yaml
@@ -84,3 +85,20 @@ def test_existing_secret_is_not_rendered():
     result = render("--set", "database.existingSecret=true", "--set", "database.url=")
     assert result.returncode == 0, result.stderr
     assert all(item["kind"] != "Secret" for item in yaml.safe_load_all(result.stdout))
+
+
+def test_local_preflight_overlay_targets_only_local_dependencies():
+    values_path = Path("infra/helm/flyte/values-local-preflight.yaml")
+    values = yaml.safe_load(values_path.read_text())
+
+    postgres = values["flyte-core-components"]["runs"]["database"]["postgres"]
+    storage = values["configuration"]["storage"]
+    assert (
+        postgres["host"] == "flyte-postgres-postgres.flyte-preflight.svc.cluster.local"
+    )
+    assert postgres["dbname"] == "flyte"
+    assert storage["provider"] == "s3"
+    assert storage["metadataContainer"] == "flyte-data"
+    assert storage["providerConfig"]["s3"]["endpoint"] == (
+        "minio.flyte-preflight.svc.cluster.local:9000"
+    )

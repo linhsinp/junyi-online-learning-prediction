@@ -9,7 +9,12 @@ NUM_SAMPLES ?= 1000
 TRAIN_FRACTION ?= 0.70
 VALIDATION_FRACTION ?= 0.15
 
-.PHONY: help test lint helm-lint helm-template flyte-training-local flyte-training-local-tui flyte-train-from-features-local postgres-local kind-create download-data materialize-parquet upload-curated-data upload-dimension-data reset-local seed-local
+FLYTE_PREFLIGHT_NAMESPACE := flyte-preflight
+FLYTE_PREFLIGHT_IMAGE ?= junyi-runtime:preflight
+FLYTE_PREFLIGHT_VERSION ?= local-preflight
+FLYTE_CHART_VERSION := $(shell tr -d '\n' < infra/helm/flyte/chart-version)
+
+.PHONY: help test lint helm-lint helm-template flyte-training-local flyte-training-local-tui flyte-train-from-features-local postgres-local kind-create download-data materialize-parquet upload-curated-data upload-dimension-data reset-local seed-local flyte-backend-preflight-image flyte-backend-preflight-up flyte-backend-preflight-run flyte-backend-preflight-status flyte-backend-preflight-down
 
 help:
 	@echo "Available targets:"
@@ -29,6 +34,11 @@ help:
 	@echo "  make flyte-training-local START_DATE=... END_DATE=..."
 	@echo "  make flyte-training-local-tui START_DATE=... END_DATE=..."
 	@echo "  make flyte-train-from-features-local FEATURE_SNAPSHOT_KEY=runs/<source-run-id>/feature_snapshot.json"
+	@echo "  make flyte-backend-preflight-image"
+	@echo "  make flyte-backend-preflight-up"
+	@echo "  make flyte-backend-preflight-run"
+	@echo "  make flyte-backend-preflight-status"
+	@echo "  make flyte-backend-preflight-down"
 
 test:
 	$(UV) run pytest
@@ -102,3 +112,53 @@ flyte-train-from-features-local:
 	JUNYI_LOG_FORMAT="$${JUNYI_LOG_FORMAT:-text}" JUNYI_LOG_DIR="$${JUNYI_LOG_DIR:-artifacts/logs}" \
 	ARTIFACT_BACKEND=local ARTIFACT_ROOT="$${ARTIFACT_ROOT:-artifacts/runs}" \
 	PYTHONPATH=src $(UV) run flyte run --local src/junyi_predictor/workflows/training.py train_from_features "$$@"
+
+# This stack is deliberately isolated from junyi-local.  It validates the
+# pinned Flyte chart/SDK/task-image boundary without altering local app data.
+flyte-backend-preflight-image:
+	docker build --platform linux/amd64 --tag "$(FLYTE_PREFLIGHT_IMAGE)" --file infra/docker/Dockerfile .
+	kind load docker-image "$(FLYTE_PREFLIGHT_IMAGE)" --name junyi
+
+flyte-backend-preflight-up:
+	@kubectl config current-context | grep -qx 'kind-junyi' || { echo "Current context must be kind-junyi"; exit 2; }
+	kubectl create namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --dry-run=client -o yaml | kubectl apply -f -
+	helm upgrade --install flyte-postgres infra/helm/local-postgres \
+		--namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" \
+		--set auth.database=flyte --set auth.username=flyte \
+		--set-string auth.password=flyte-preflight-local-only \
+		--set service.nodePort=30002
+	kubectl apply -f infra/local/flyte-preflight/
+	kubectl rollout status deployment/minio --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --timeout=120s
+	kubectl wait --for=condition=complete job/minio-create-flyte-data --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --timeout=120s
+	helm upgrade --install junyi-preflight infra/helm/junyi-cloud \
+		--namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" \
+		--set serviceAccount.googleEmail=local-preflight@example.invalid \
+		--set config.artifactBucket=flyte-data --set config.dataLakeBucket=not-used-by-preflight \
+		--set-string database.url=postgresql://flyte:flyte-preflight-local-only@flyte-postgres-postgres.$(FLYTE_PREFLIGHT_NAMESPACE).svc.cluster.local:5432/flyte \
+		--set quota.cpu=6 --set quota.memory=8Gi --set quota.ephemeralStorage=8Gi --set quota.pods=12
+	helm upgrade --install flyte-preflight \
+		"https://flyteorg.github.io/flyte/flyte-binary-$(FLYTE_CHART_VERSION).tgz" \
+		--namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" \
+		-f infra/helm/flyte/values-local-preflight.yaml --wait --timeout 10m
+
+flyte-backend-preflight-run:
+	@set -eu; \
+		kubectl -n "$(FLYTE_PREFLIGHT_NAMESPACE)" port-forward service/flyte-preflight-flyte-binary-http 8090:8090 >/tmp/junyi-flyte-preflight-port-forward.log 2>&1 & pid=$$!; \
+		trap 'kill $$pid 2>/dev/null || true' EXIT; \
+		until grep -q 'Forwarding from' /tmp/junyi-flyte-preflight-port-forward.log; do sleep 1; done; \
+		PYTHONPATH=src $(UV) run flyte --endpoint localhost:8090 --insecure deploy \
+			--image "runtime=$(FLYTE_PREFLIGHT_IMAGE)" --version "$(FLYTE_PREFLIGHT_VERSION)" \
+			src/junyi_predictor/workflows/preflight.py PREFLIGHT_ENVIRONMENT; \
+		PYTHONPATH=src $(UV) run flyte --endpoint localhost:8090 --insecure run \
+			--image "runtime=$(FLYTE_PREFLIGHT_IMAGE)" \
+			src/junyi_predictor/workflows/preflight.py runtime_compatibility
+
+flyte-backend-preflight-status:
+	kubectl get all --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)"
+	kubectl get pods --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" -o wide
+
+flyte-backend-preflight-down:
+	@helm uninstall flyte-preflight --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" 2>/dev/null || true
+	@helm uninstall junyi-preflight --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" 2>/dev/null || true
+	@helm uninstall flyte-postgres --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" 2>/dev/null || true
+	@kubectl delete namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --ignore-not-found
