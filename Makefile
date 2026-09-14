@@ -12,6 +12,8 @@ VALIDATION_FRACTION ?= 0.15
 FLYTE_PREFLIGHT_NAMESPACE := flyte-preflight
 FLYTE_PREFLIGHT_IMAGE ?= junyi-runtime:preflight
 FLYTE_PREFLIGHT_VERSION ?= local-preflight
+FLYTE_PREFLIGHT_PROJECT := flyte-preflight
+FLYTE_PREFLIGHT_DOMAIN := development
 FLYTE_CHART_VERSION := $(shell tr -d '\n' < infra/helm/flyte/chart-version)
 
 .PHONY: help test lint helm-lint helm-template flyte-training-local flyte-training-local-tui flyte-train-from-features-local postgres-local kind-create download-data materialize-parquet upload-curated-data upload-dimension-data reset-local seed-local flyte-backend-preflight-image flyte-backend-preflight-up flyte-backend-preflight-run flyte-backend-preflight-status flyte-backend-preflight-down
@@ -127,6 +129,8 @@ flyte-backend-preflight-up:
 		--set auth.database=flyte --set auth.username=flyte \
 		--set-string auth.password=flyte-preflight-local-only \
 		--set service.nodePort=30002
+	kubectl delete job minio-create-flyte-data --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --ignore-not-found
+	kubectl wait --for=delete job/minio-create-flyte-data --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --timeout=60s 2>/dev/null || true
 	kubectl apply -f infra/local/flyte-preflight/
 	kubectl rollout status deployment/minio --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --timeout=120s
 	kubectl wait --for=condition=complete job/minio-create-flyte-data --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --timeout=120s
@@ -144,12 +148,19 @@ flyte-backend-preflight-up:
 flyte-backend-preflight-run:
 	@set -eu; \
 		kubectl -n "$(FLYTE_PREFLIGHT_NAMESPACE)" port-forward service/flyte-preflight-flyte-binary-http 8090:8090 >/tmp/junyi-flyte-preflight-port-forward.log 2>&1 & pid=$$!; \
-		trap 'kill $$pid 2>/dev/null || true' EXIT; \
+		kubectl -n "$(FLYTE_PREFLIGHT_NAMESPACE)" port-forward --address 0.0.0.0 service/minio 9000:9000 >/tmp/junyi-minio-preflight-port-forward.log 2>&1 & minio_pid=$$!; \
+		trap 'kill $$pid $$minio_pid 2>/dev/null || true' EXIT; \
 		until grep -q 'Forwarding from' /tmp/junyi-flyte-preflight-port-forward.log; do sleep 1; done; \
+		until grep -q 'Forwarding from' /tmp/junyi-minio-preflight-port-forward.log; do sleep 1; done; \
+		PYTHONPATH=src $(UV) run flyte --endpoint localhost:8090 --insecure get project "$(FLYTE_PREFLIGHT_PROJECT)" >/dev/null 2>&1 || \
+			PYTHONPATH=src $(UV) run flyte --endpoint localhost:8090 --insecure create project \
+				--id "$(FLYTE_PREFLIGHT_PROJECT)" --name "Junyi local preflight"; \
 		PYTHONPATH=src $(UV) run flyte --endpoint localhost:8090 --insecure deploy \
+			--project "$(FLYTE_PREFLIGHT_PROJECT)" --domain "$(FLYTE_PREFLIGHT_DOMAIN)" \
 			--image "runtime=$(FLYTE_PREFLIGHT_IMAGE)" --version "$(FLYTE_PREFLIGHT_VERSION)" \
 			src/junyi_predictor/workflows/preflight.py PREFLIGHT_ENVIRONMENT; \
 		PYTHONPATH=src $(UV) run flyte --endpoint localhost:8090 --insecure run \
+			--project "$(FLYTE_PREFLIGHT_PROJECT)" --domain "$(FLYTE_PREFLIGHT_DOMAIN)" \
 			--image "runtime=$(FLYTE_PREFLIGHT_IMAGE)" \
 			src/junyi_predictor/workflows/preflight.py runtime_compatibility
 

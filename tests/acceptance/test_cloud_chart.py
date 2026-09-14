@@ -99,6 +99,28 @@ def test_local_preflight_overlay_targets_only_local_dependencies():
     assert postgres["dbname"] == "flyte"
     assert storage["provider"] == "s3"
     assert storage["metadataContainer"] == "flyte-data"
-    assert storage["providerConfig"]["s3"]["endpoint"] == (
-        "minio.flyte-preflight.svc.cluster.local:9000"
+    assert storage["providerConfig"]["s3"]["endpoint"] == "host.docker.internal:9000"
+    assert values["rbac"]["extraRules"] == [
+        {"apiGroups": [""], "resources": ["namespaces"], "verbs": ["get"]},
+        {
+            "apiGroups": ["events.k8s.io"],
+            "resources": ["events"],
+            "verbs": ["get", "list", "watch"],
+        },
+        {"apiGroups": [""], "resources": ["secrets"], "verbs": ["delete"]},
+    ]
+
+
+def test_local_preflight_auxiliary_pods_have_quota_requests():
+    manifests = (
+        Path("infra/local/flyte-preflight/minio-deployment.yaml"),
+        Path("infra/local/flyte-preflight/minio-bucket-job.yaml"),
     )
+
+    for manifest in manifests:
+        pod_spec = yaml.safe_load(manifest.read_text())["spec"]
+        while "template" in pod_spec:
+            pod_spec = pod_spec["template"]["spec"]
+        requests = pod_spec["containers"][0]["resources"]["requests"]
+        assert requests["cpu"]
+        assert requests["memory"]

@@ -38,6 +38,11 @@ service account, ConfigMap, and Secret are available to a Flyte-scheduled pod.
 It reports only booleans for configuration injection and never prints the
 database URL or a service-account token.
 
+The run target creates the isolated `flyte-preflight` Flyte project on first
+use and deploys into its `development` domain. No global Flyte CLI config file
+is required. During this command only, MinIO is port-forwarded at port 9000 so
+the host CLI and kind task pods share one S3-compatible endpoint.
+
 ## Teardown
 
 ```sh
