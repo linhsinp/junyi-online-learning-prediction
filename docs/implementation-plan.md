@@ -23,6 +23,9 @@ The repository must not schedule `flyte run --local` inside a Kubernetes
 CronJob. Helm deploys Flyte; Flyte deploys Junyi task pods and owns the
 application schedule.
 
+The target split between Terraform, Helm, and Flyte workflow code is documented
+in [cloud configuration ownership and migration plan](cloud-configuration-ownership.md).
+
 ## Application architecture
 
 ```mermaid
