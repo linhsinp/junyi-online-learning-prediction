@@ -35,6 +35,17 @@ terraform -chdir=infra/terraform/demo apply
 Build and push exactly one `linux/amd64` runtime image. Deploy and seed by
 digest, not a mutable tag.
 
+Before pushing, build and smoke-test the target architecture locally. This
+confirms that Flyte and both Junyi packages are importable through the image's
+default Python interpreter:
+
+```sh
+docker buildx build --platform linux/amd64 --load \
+  --file infra/docker/Dockerfile --tag junyi-runtime:preflight .
+docker run --rm --platform linux/amd64 junyi-runtime:preflight \
+  python -c 'import flyte, junyi_predictor, junyi_observability; print(flyte.__version__)'
+```
+
 ```sh
 RUNTIME_REPOSITORY="$(terraform -chdir=infra/terraform/demo output -raw runtime_image_repository)"
 GIT_SHA="$(git rev-parse --short HEAD)"
