@@ -10,7 +10,8 @@ TRAIN_FRACTION ?= 0.70
 VALIDATION_FRACTION ?= 0.15
 
 FLYTE_PREFLIGHT_NAMESPACE := flyte-preflight
-FLYTE_PREFLIGHT_IMAGE ?= junyi-runtime:preflight
+FLYTE_PREFLIGHT_AMD64_IMAGE ?= junyi-runtime:preflight
+FLYTE_PREFLIGHT_IMAGE ?= junyi-runtime:preflight-kind
 FLYTE_PREFLIGHT_VERSION ?= local-preflight
 FLYTE_PREFLIGHT_PROJECT := flyte-preflight
 FLYTE_PREFLIGHT_DOMAIN := development
@@ -118,7 +119,9 @@ flyte-train-from-features-local:
 # This stack is deliberately isolated from junyi-local.  It validates the
 # pinned Flyte chart/SDK/task-image boundary without altering local app data.
 flyte-backend-preflight-image:
-	docker build --platform linux/amd64 --tag "$(FLYTE_PREFLIGHT_IMAGE)" --file infra/docker/Dockerfile .
+	docker build --platform linux/amd64 --tag "$(FLYTE_PREFLIGHT_AMD64_IMAGE)" --file infra/docker/Dockerfile .
+	docker run --rm --platform linux/amd64 "$(FLYTE_PREFLIGHT_AMD64_IMAGE)" python -c 'import flyte, junyi_predictor, junyi_observability; print(flyte.__version__)'
+	docker build --tag "$(FLYTE_PREFLIGHT_IMAGE)" --file infra/docker/Dockerfile .
 	kind load docker-image "$(FLYTE_PREFLIGHT_IMAGE)" --name junyi
 
 flyte-backend-preflight-up:
@@ -147,22 +150,22 @@ flyte-backend-preflight-up:
 
 flyte-backend-preflight-run:
 	@set -eu; \
-		kubectl -n "$(FLYTE_PREFLIGHT_NAMESPACE)" port-forward service/flyte-preflight-flyte-binary-http 8090:8090 >/tmp/junyi-flyte-preflight-port-forward.log 2>&1 & pid=$$!; \
-		kubectl -n "$(FLYTE_PREFLIGHT_NAMESPACE)" port-forward --address 0.0.0.0 service/minio 9000:9000 >/tmp/junyi-minio-preflight-port-forward.log 2>&1 & minio_pid=$$!; \
-		trap 'kill $$pid $$minio_pid 2>/dev/null || true' EXIT; \
-		until grep -q 'Forwarding from' /tmp/junyi-flyte-preflight-port-forward.log; do sleep 1; done; \
-		until grep -q 'Forwarding from' /tmp/junyi-minio-preflight-port-forward.log; do sleep 1; done; \
-		PYTHONPATH=src $(UV) run flyte --endpoint localhost:8090 --insecure get project "$(FLYTE_PREFLIGHT_PROJECT)" >/dev/null 2>&1 || \
-			PYTHONPATH=src $(UV) run flyte --endpoint localhost:8090 --insecure create project \
+		kubectl delete pod flyte-preflight-cli --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --ignore-not-found; \
+		kubectl wait --for=delete pod/flyte-preflight-cli --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --timeout=60s 2>/dev/null || true; \
+		kubectl apply -f infra/local/flyte-preflight/flyte-cli-pod.yaml; \
+		kubectl wait --for=condition=Ready pod/flyte-preflight-cli --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" --timeout=120s; \
+		kubectl exec --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)" flyte-preflight-cli -- sh -ec '\
+			flyte --endpoint flyte-preflight-flyte-binary-http:8090 --insecure get project "$(FLYTE_PREFLIGHT_PROJECT)" >/dev/null 2>&1 || \
+			flyte --endpoint flyte-preflight-flyte-binary-http:8090 --insecure create project \
 				--id "$(FLYTE_PREFLIGHT_PROJECT)" --name "Junyi local preflight"; \
-		PYTHONPATH=src $(UV) run flyte --endpoint localhost:8090 --insecure deploy \
+			flyte --endpoint flyte-preflight-flyte-binary-http:8090 --insecure deploy \
 			--project "$(FLYTE_PREFLIGHT_PROJECT)" --domain "$(FLYTE_PREFLIGHT_DOMAIN)" \
 			--image "runtime=$(FLYTE_PREFLIGHT_IMAGE)" --version "$(FLYTE_PREFLIGHT_VERSION)" \
 			src/junyi_predictor/workflows/preflight.py PREFLIGHT_ENVIRONMENT; \
-		PYTHONPATH=src $(UV) run flyte --endpoint localhost:8090 --insecure run \
+			flyte --endpoint flyte-preflight-flyte-binary-http:8090 --insecure run \
 			--project "$(FLYTE_PREFLIGHT_PROJECT)" --domain "$(FLYTE_PREFLIGHT_DOMAIN)" \
 			--image "runtime=$(FLYTE_PREFLIGHT_IMAGE)" \
-			src/junyi_predictor/workflows/preflight.py runtime_compatibility
+			src/junyi_predictor/workflows/preflight.py runtime_compatibility'
 
 flyte-backend-preflight-status:
 	kubectl get all --namespace "$(FLYTE_PREFLIGHT_NAMESPACE)"

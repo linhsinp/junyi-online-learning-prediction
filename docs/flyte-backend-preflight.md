@@ -32,16 +32,18 @@ task_secret_injected: true
 ```
 
 `flyte-backend-preflight-image` builds the same `linux/amd64` runtime image
-used for the cloud runbook and loads it into the existing kind cluster. The
-probe uses the production task pod template, so it verifies the Helm-managed
-service account, ConfigMap, and Secret are available to a Flyte-scheduled pod.
-It reports only booleans for configuration injection and never prints the
-database URL or a service-account token.
+used for the cloud runbook and smoke-tests its imports. It then builds a native
+kind-node copy (`junyi-runtime:preflight-kind`) for the local task execution.
+This distinction matters on ARM64 developer machines: kind cannot load an AMD64
+image into an ARM64 node. The probe uses the production task pod template, so it
+verifies the Helm-managed service account, ConfigMap, and Secret are available
+to a Flyte-scheduled pod. It reports only booleans for configuration injection
+and never prints the database URL or a service-account token.
 
 The run target creates the isolated `flyte-preflight` Flyte project on first
 use and deploys into its `development` domain. No global Flyte CLI config file
-is required. During this command only, MinIO is port-forwarded at port 9000 so
-the host CLI and kind task pods share one S3-compatible endpoint.
+is required. It executes the CLI from a temporary in-cluster pod, so bundle
+upload, Flyte, MinIO, and the task pod use the same Kubernetes DNS endpoint.
 
 ## Teardown
 

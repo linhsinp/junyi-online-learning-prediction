@@ -99,7 +99,9 @@ def test_local_preflight_overlay_targets_only_local_dependencies():
     assert postgres["dbname"] == "flyte"
     assert storage["provider"] == "s3"
     assert storage["metadataContainer"] == "flyte-data"
-    assert storage["providerConfig"]["s3"]["endpoint"] == "host.docker.internal:9000"
+    assert storage["providerConfig"]["s3"]["endpoint"] == (
+        "http://minio.flyte-preflight.svc.cluster.local:9000"
+    )
     assert values["rbac"]["extraRules"] == [
         {"apiGroups": [""], "resources": ["namespaces"], "verbs": ["get"]},
         {
