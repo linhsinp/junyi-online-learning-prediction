@@ -136,11 +136,15 @@ per-task Kubernetes pods require the stage 4 Flyte OSS deployment.
 2. Initialize and apply `infra/terraform/demo` with a pinned Flyte chart version
    and securely supplied database password.
 3. Build and push the runtime image to Artifact Registry.
-4. Deploy Flyte OSS with Helm, configure its task identity, and register the
+4. Upload the selected curated Parquet partitions to the Terraform-provisioned
+   data-lake bucket with `make upload-curated-data DATA_LAKE_BUCKET=...`.
+5. Deploy Flyte OSS with Helm, configure its task identity, and register the
    workflow with `flyte deploy`.
-5. Execute one remote training run and inspect Flyte actions, Cloud SQL rows,
+6. Execute one remote training run with `DATA_LAKE_BACKEND=gcs`,
+   `DATA_LAKE_BUCKET`, and the selected data-lake prefix configured in the task
+   environment; inspect Flyte actions, Cloud SQL rows,
    GCS artifacts, and the approved-model manifest.
-6. Destroy the demo Terraform environment immediately after verification.
+7. Destroy the demo Terraform environment immediately after verification.
 
 ## Terraform boundary
 
@@ -154,7 +158,7 @@ per-task Kubernetes pods require the stage 4 Flyte OSS deployment.
 
 The bootstrap configuration creates a versioned GCS state bucket. The demo
 configuration creates a VPC/subnet, private-service connection, GKE Autopilot,
-Artifact Registry, an artifact bucket, Cloud SQL PostgreSQL databases, and a
+Artifact Registry, separate data-lake and artifact buckets, Cloud SQL PostgreSQL databases, and a
 least-privilege task identity. Terraform connects Helm and Kubernetes providers
 to GKE using its endpoint, access token, and CA certificate.
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from pathlib import Path
 
 from junyi_predictor.bootstrap.database import (
     reset_database,
@@ -11,7 +12,10 @@ from junyi_predictor.bootstrap.database import (
 )
 from junyi_predictor.bootstrap.kaggle import download_kaggle_data
 from junyi_predictor.bootstrap.lake import materialize_log_parquet
+from junyi_predictor.paths import CURATED_LOG_DIR
 from junyi_predictor.progress import execution
+from junyi_predictor.settings import DataLakeSettings
+from junyi_predictor.storage.data_lake import upload_curated_log
 
 
 def main() -> None:
@@ -22,6 +26,7 @@ def main() -> None:
     subcommands.add_parser("materialize-parquet")
     subcommands.add_parser("reset-db")
     subcommands.add_parser("seed-db")
+    subcommands.add_parser("upload-curated-data")
     args = parser.parse_args()
 
     with execution(args.command, service="junyi-bootstrap"):
@@ -31,8 +36,19 @@ def main() -> None:
             materialize_log_parquet()
         elif args.command == "reset-db":
             reset_database(os.environ["DATABASE_URL"])
-        else:
+        elif args.command == "seed-db":
             seed_database_from_raw_files(os.environ["DATABASE_URL"])
+        else:
+            settings = DataLakeSettings.from_environment()
+            if settings.backend != "gcs" or not settings.gcs_bucket:
+                raise ValueError(
+                    "upload-curated-data requires DATA_LAKE_BACKEND=gcs and DATA_LAKE_BUCKET"
+                )
+            upload_curated_log(
+                Path(settings.curated_log_root or CURATED_LOG_DIR),
+                settings.gcs_bucket,
+                settings.gcs_prefix,
+            )
 
 
 if __name__ == "__main__":

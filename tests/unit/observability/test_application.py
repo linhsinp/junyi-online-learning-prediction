@@ -53,6 +53,14 @@ def test_cli_missing_configuration_is_logged_before_reraise(records, monkeypatch
     assert records()[-1]["event"] == "execution.failed"
 
 
+def test_cli_upload_curated_data_requires_gcs_configuration(records, monkeypatch):
+    monkeypatch.delenv("DATA_LAKE_BUCKET", raising=False)
+    monkeypatch.setattr("sys.argv", ["junyi-predictor", "upload-curated-data"])
+    with pytest.raises(ValueError, match="DATA_LAKE_BUCKET"):
+        cli.main()
+    assert records()[-1]["event"] == "execution.failed"
+
+
 def test_validation_aggregates_reasons_without_input_values(records):
     class Row(SQLModel):
         value: int

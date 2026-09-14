@@ -20,8 +20,9 @@ from junyi_predictor.pipeline.preprocessing import (
     preprocess_stage,
 )
 from junyi_predictor.progress import operation, remote_logging_env, task_logging, timed
-from junyi_predictor.settings import ArtifactSettings, Settings
+from junyi_predictor.settings import ArtifactSettings, DataLakeSettings, Settings
 from junyi_predictor.storage.artifacts import create_artifact_store
+from junyi_predictor.storage.data_lake import resolve_curated_log_root
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +100,22 @@ async def materialize_preprocessed(
         )
     settings = Settings.from_environment()
     engine = create_engine(settings.database_url)
-    df_log, df_user, df_content = load_data_for_training(
-        run.start_date, run.end_date, engine
-    )
+    data_lake_settings = DataLakeSettings.from_environment()
+    if data_lake_settings.backend == "local":
+        df_log, df_user, df_content = load_data_for_training(
+            run.start_date, run.end_date, engine
+        )
+    else:
+        with tempfile.TemporaryDirectory(prefix="junyi-curated-") as temp_dir:
+            curated_log_root = resolve_curated_log_root(
+                data_lake_settings,
+                run.start_date,
+                run.end_date,
+                Path(temp_dir),
+            )
+            df_log, df_user, df_content = load_data_for_training(
+                run.start_date, run.end_date, engine, curated_log_root
+            )
     preprocessed = preprocess_stage(df_log, df_user, df_content)
     with operation(
         "database.write",

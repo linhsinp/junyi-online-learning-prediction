@@ -77,6 +77,13 @@ resource "google_storage_bucket" "artifacts" {
   force_destroy               = true
 }
 
+resource "google_storage_bucket" "data_lake" {
+  name                        = "${var.project_id}-${local.name_prefix}-data"
+  location                    = var.region
+  uniform_bucket_level_access = true
+  force_destroy               = true
+}
+
 resource "google_sql_database_instance" "postgres" {
   name                = "${local.name_prefix}-postgres"
   region              = var.region
@@ -124,6 +131,12 @@ resource "google_service_account" "flyte_task" {
 resource "google_storage_bucket_iam_member" "flyte_artifacts" {
   bucket = google_storage_bucket.artifacts.name
   role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.flyte_task.email}"
+}
+
+resource "google_storage_bucket_iam_member" "flyte_data_lake" {
+  bucket = google_storage_bucket.data_lake.name
+  role   = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.flyte_task.email}"
 }
 

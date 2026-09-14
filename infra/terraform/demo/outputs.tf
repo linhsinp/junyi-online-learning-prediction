@@ -2,6 +2,10 @@ output "artifact_bucket" {
   value = google_storage_bucket.artifacts.name
 }
 
+output "data_lake_bucket" {
+  value = google_storage_bucket.data_lake.name
+}
+
 output "artifact_registry_repository" {
   value = google_artifact_registry_repository.runtime.name
 }

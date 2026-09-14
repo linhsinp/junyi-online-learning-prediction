@@ -9,7 +9,7 @@ NUM_SAMPLES ?= 1000
 TRAIN_FRACTION ?= 0.70
 VALIDATION_FRACTION ?= 0.15
 
-.PHONY: help test lint helm-lint helm-template flyte-training-local flyte-training-local-tui flyte-train-from-features-local postgres-local kind-create download-data materialize-parquet reset-local seed-local
+.PHONY: help test lint helm-lint helm-template flyte-training-local flyte-training-local-tui flyte-train-from-features-local postgres-local kind-create download-data materialize-parquet upload-curated-data reset-local seed-local
 
 help:
 	@echo "Available targets:"
@@ -22,6 +22,7 @@ help:
 	@echo "  make postgres-local"
 	@echo "  make download-data"
 	@echo "  make materialize-parquet"
+	@echo "  make upload-curated-data DATA_LAKE_BUCKET=..."
 	@echo "  make reset-local DATABASE_URL=..."
 	@echo "  make seed-local DATABASE_URL=..."
 	@echo "  make flyte-training-local START_DATE=... END_DATE=..."
@@ -54,6 +55,10 @@ download-data:
 
 materialize-parquet:
 	PYTHONPATH=src $(UV) run python -m junyi_predictor.cli materialize-parquet
+
+upload-curated-data:
+	@test -n "$(DATA_LAKE_BUCKET)" || { echo "DATA_LAKE_BUCKET is required"; exit 2; }
+	DATA_LAKE_BACKEND=gcs DATA_LAKE_BUCKET="$(DATA_LAKE_BUCKET)" DATA_LAKE_PREFIX="$${DATA_LAKE_PREFIX:-data/curated/log_problem}" PYTHONPATH=src $(UV) run python -m junyi_predictor.cli upload-curated-data
 
 reset-local:
 	DATABASE_URL="$(DATABASE_URL)" PYTHONPATH=src $(UV) run python -m junyi_predictor.cli reset-db
