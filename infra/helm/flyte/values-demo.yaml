@@ -1,5 +1,7 @@
-# Validated against flyte-binary v2.0.20. Terraform injects Cloud SQL and bucket
-# identifiers, keeping credentials out of this overlay.
+# Version is pinned in chart-version; generated Helm values supply cloud outputs.
+serviceAccount:
+  create: true
+  name: junyi-flyte-control
 flyte-core-components:
   manager:
     kubernetes:

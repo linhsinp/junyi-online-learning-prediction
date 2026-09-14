@@ -167,26 +167,26 @@ least-privilege roles through the project administrator.
 
 Do not install Flyte globally for this repository. The checked-in `uv.lock`
 provides the CLI used by the deployment commands. The GKE authentication plugin
-is only needed for direct `kubectl` inspection; Terraform uses its configured
-Google and Kubernetes providers. If its verification command is unavailable in
+is needed for Helm deployment and direct `kubectl` inspection. Terraform uses
+only its Google provider. If its verification command is unavailable in
 a Google Cloud CLI installation that supports component management, install it
 with `gcloud components install gke-gcloud-auth-plugin`.
 
 ### 4. Ephemeral cloud demonstration
 
 1. Apply `infra/terraform/bootstrap` to create the remote state bucket.
-2. Initialize and apply `infra/terraform/demo` with a pinned Flyte chart version
-   and securely supplied database password.
+2. Initialize and apply `infra/terraform/demo` with a securely supplied database password.
 3. Build and push the runtime image to Artifact Registry.
 4. Upload the selected curated Parquet partitions to the Terraform-provisioned
    data-lake bucket with `make upload-curated-data DATA_LAKE_BUCKET=...`.
-5. Deploy Flyte OSS with Helm, configure its task identity, and register the
-   workflow with `flyte deploy`.
+5. Generate Helm values from Terraform outputs; install the Junyi and pinned
+   Flyte releases, seed dimensions, and register the workflow with `flyte deploy`.
+   Follow the [cloud MVP runbook](cloud-mvp-runbook.md) for exact commands.
 6. Execute one remote training run with `DATA_LAKE_BACKEND=gcs`,
    `DATA_LAKE_BUCKET`, and the selected data-lake prefix configured in the task
    environment; inspect Flyte actions, Cloud SQL rows,
    GCS artifacts, and the approved-model manifest.
-7. Destroy the demo Terraform environment immediately after verification.
+7. Uninstall both Helm releases, then destroy the demo Terraform environment.
 
 ## Terraform boundary
 
@@ -201,8 +201,8 @@ with `gcloud components install gke-gcloud-auth-plugin`.
 The bootstrap configuration creates a versioned GCS state bucket. The demo
 configuration creates a VPC/subnet, private-service connection, GKE Autopilot,
 Artifact Registry, separate data-lake and artifact buckets, Cloud SQL PostgreSQL databases, and a
-least-privilege task identity. Terraform connects Helm and Kubernetes providers
-to GKE using its endpoint, access token, and CA certificate.
+least-privilege task identity. Terraform exposes cloud outputs; Helm uses them
+to configure the Junyi project and Flyte platform through the GKE kubeconfig.
 
 Workload Identity maps the Flyte task Kubernetes service account to a Google
 service account with bucket-scoped object access and Cloud SQL client access.

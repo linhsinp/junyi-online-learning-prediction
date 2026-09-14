@@ -1,0 +1,27 @@
+serviceAccount:
+  name: junyi-flyte-task
+  googleEmail: ""
+config:
+  name: junyi-task-runtime
+  artifactBucket: ""
+  artifactRoot: runs
+  dataLakeBucket: ""
+  dataLakePrefix: data/curated/log_problem
+  dimensionPrefix: data/dimensions
+database:
+  secretName: junyi-task-database
+  existingSecret: false
+  url: ""
+quota:
+  cpu: "4"
+  memory: 12Gi
+  ephemeralStorage: 12Gi
+  pods: "8"
+seeder:
+  enabled: false
+  image: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+      ephemeral-storage: 1Gi

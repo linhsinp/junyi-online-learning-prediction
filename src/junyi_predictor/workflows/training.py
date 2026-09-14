@@ -40,7 +40,7 @@ TASK_SERVICE_ACCOUNT = "junyi-flyte-task"
 
 
 def _task_pod_template() -> flyte.PodTemplate:
-    """Attach the Terraform-provisioned task identity and runtime configuration."""
+    """Attach the Helm-managed task identity and runtime configuration."""
     return flyte.PodTemplate(
         pod_spec=V1PodSpec(
             service_account_name=TASK_SERVICE_ACCOUNT,

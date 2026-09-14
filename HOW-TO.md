@@ -97,6 +97,7 @@ through `kubectl port-forward` for this MVP.
 - `infra/docker/`: the single runtime image.
 - `infra/helm/local-postgres/`: local kind PostgreSQL chart.
 - `infra/helm/flyte/`: Flyte OSS values overlay.
+- `infra/helm/junyi-cloud/`: Junyi Kubernetes configuration, quota, and seeder.
 - `infra/terraform/`: bootstrap and cloud demonstration provisioning.
 
 ## Outputs

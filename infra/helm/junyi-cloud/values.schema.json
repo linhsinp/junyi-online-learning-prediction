@@ -1,0 +1,63 @@
+{
+  "type": "object",
+  "required": [
+    "serviceAccount",
+    "database",
+    "seeder"
+  ],
+  "properties": {
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "junyi-flyte-task"
+        },
+        "googleEmail": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "const": "junyi-task-runtime"
+        },
+        "artifactBucket": {
+          "type": "string",
+          "minLength": 1
+        },
+        "dataLakeBucket": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "secretName": {
+          "const": "junyi-task-database"
+        },
+        "existingSecret": {
+          "type": "boolean"
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    },
+    "seeder": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

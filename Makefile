@@ -34,13 +34,15 @@ test:
 	$(UV) run pytest
 
 lint:
-	$(UV) run ruff check src tests
+	$(UV) run ruff check src tests scripts
 
 helm-lint:
 	helm lint ./infra/helm/local-postgres
+	helm lint infra/helm/junyi-cloud -f infra/helm/junyi-cloud/values-test.yaml
 
 helm-template:
 	helm template junyi ./infra/helm/local-postgres >/dev/null
+	helm template junyi-cloud infra/helm/junyi-cloud --namespace flyte -f infra/helm/junyi-cloud/values-test.yaml >/dev/null
 
 kind-create:
 	kind create cluster --name junyi --config infra/local/kind.yaml

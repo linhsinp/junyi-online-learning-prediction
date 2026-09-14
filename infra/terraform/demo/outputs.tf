@@ -18,6 +18,22 @@ output "cluster_name" {
   value = google_container_cluster.main.name
 }
 
+output "project_id" {
+  value = var.project_id
+}
+
+output "region" {
+  value = var.region
+}
+
+output "task_service_account_email" {
+  value = google_service_account.flyte_task.email
+}
+
+output "control_service_account_email" {
+  value = google_service_account.flyte_control.email
+}
+
 output "cloud_sql_private_ip" {
   value = google_sql_database_instance.postgres.private_ip_address
 }

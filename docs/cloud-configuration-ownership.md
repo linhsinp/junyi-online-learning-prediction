@@ -19,15 +19,29 @@ Use this contributor rule:
 
 A task resource request describes one pod's needs. A ResourceQuota constrains the Junyi namespace as a whole. Requests belong to workflow code; the quota belongs to the Junyi Helm release.
 
+The MVP retains the shared `flyte` namespace, so this quota also counts the
+Flyte control plane and the seeder. It limits aggregate requested resources,
+not cloud spending. VPC configuration remains Terraform-owned because it
+governs cloud networking, independently of any namespace's resource budget.
+Local PostgreSQL remains under `infra/helm/local-postgres`; local workflow
+execution does not require either cloud Helm release.
+
 ## Current state
 
-The cloud MVP Terraform currently creates Junyi Kubernetes objects: the task service account, task ConfigMap, database Secret, ResourceQuota, seeder Job, and Flyte Helm release. This is transitional and does not match the target model.
+The ownership split below is implemented. Terraform contains cloud resources
+and Google IAM; the Junyi chart owns task Kubernetes objects and the Flyte
+chart owns the control plane. The cloud runbook documents the output-to-values
+handoff and the fresh-environment migration path. Cloud execution remains a
+manually gated acceptance check.
 
-## Implementation plan
+## Implementation plan (implemented)
 
 ### 1. Add a Junyi cloud chart
 
-Create `infra/helm/junyi-cloud/`. Its values and templates must render the `junyi-flyte-task` service account with a supplied Workload Identity annotation, task ConfigMap, database Secret reference, `junyi-demo-limits` ResourceQuota, and a disabled-by-default seeder Job. Enable the Job only when supplied an immutable runtime image. Keep service-account, ConfigMap, and Secret names aligned with the Python PodTemplate constants.
+The chart at `infra/helm/junyi-cloud/` renders the task service account, runtime
+ConfigMap, database Secret (or references an existing Secret), quota, and an
+optional seeder Job. Its schema fixes the names used by the Python PodTemplate.
+The seeder requires an immutable image digest and is disabled by default.
 
 Add rendering tests for the identity annotation, quota, ConfigMap, and both seeder-Job paths.
 
